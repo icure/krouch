@@ -31,6 +31,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -44,13 +47,15 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.platform.commons.logging.LoggerFactory
 import org.taktik.couchdb.dao.CodeDAO
 import org.taktik.couchdb.entity.*
 import org.taktik.couchdb.exception.CouchDbConflictException
+import org.taktik.couchdb.exception.CouchDbException
 import reactor.tools.agent.ReactorDebugAgent
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URI
 import java.net.URL
@@ -142,12 +147,11 @@ class CouchDbClientTests {
         assertEquals(codes.map { it.code }.toSet(), changes.map { it.doc.code }.toSet())
     }
 
-
     @Test
     fun testSubscribeUserChanges() = runBlocking {
         val testSize = 100
         val deferredChanges = async {
-            client.subscribeForChanges<org.taktik.couchdb.User>("java_type", {
+            client.subscribeForChanges("java_type", {
                 if (it == "org.taktik.icure.entities.User") {
                     User::class.java
                 } else null
@@ -451,5 +455,38 @@ class CouchDbClientTests {
         assertTrue(activeTasks[1] is ViewCompactionTask)
         assertTrue(activeTasks[2] is DatabaseCompactionTask)
         assertTrue(activeTasks[4] is ReplicationTask)
+    }
+
+    @Test
+    fun testCreateAndGetAttachment() = runBlocking {
+        val randomCode = UUID.randomUUID().toString()
+        val created = client.create(Code.from("test", randomCode, "test"))
+        val attachmentId = "attachment1"
+        val attachment = byteArrayOf(1, 2, 3)
+        client.createAttachment(
+            created.id,
+            attachmentId,
+            created.rev!!,
+            "application/json",
+            flowOf(ByteBuffer.wrap(attachment))
+        )
+        val retrievedAttachment = ByteArrayOutputStream().use { os ->
+            @Suppress("BlockingMethodInNonBlockingContext")
+            client.getAttachment(created.id, attachmentId).collect { bb ->
+                if (bb.hasArray() && bb.hasRemaining()) {
+                    os.write(bb.array(), bb.position() + bb.arrayOffset(), bb.remaining())
+                } else {
+                    os.write(ByteArray(bb.remaining()).also { bb.get(it) })
+                }
+            }
+            os.toByteArray()
+        }
+        assertEquals(retrievedAttachment.toList(), attachment.toList())
+        try {
+            client.getAttachment(created.id, "non-existing").first()
+            fail("Should not be able to retrieve non-existing attachment")
+        } catch (e: CouchDbException) {
+            assertEquals(e.statusCode, 404)
+        }
     }
 }
