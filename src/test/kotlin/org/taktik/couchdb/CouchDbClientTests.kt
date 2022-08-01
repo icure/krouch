@@ -64,6 +64,7 @@ import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
 import java.util.*
+import kotlin.random.Random
 
 @FlowPreview
 @ExperimentalCoroutinesApi
@@ -490,5 +491,23 @@ class CouchDbClientTests {
         } catch (e: CouchDbException) {
             assertEquals(e.statusCode, 404)
         }
+    }
+
+    fun testAttachmentSize() = runBlocking {
+        val created = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val sizes = listOf(10, 50, 100, 500, 1000, 1234).map { "attachment$it" to it }
+        sizes.fold(created.rev!!) { rev, (id, size) ->
+            val attachment = Random(System.currentTimeMillis()).nextBytes(size)
+            client.createAttachment(
+                created.id,
+                id,
+                rev,
+                "application/json",
+                flowOf(ByteBuffer.wrap(attachment))
+            )
+        }
+        val codeWithAttachments = client.get<Code>(created.id)!!
+        assertEquals(codeWithAttachments.attachments?.size, sizes.size)
+        assertEquals(codeWithAttachments.attachments?.map { it.key to it.value.length?.toInt() }?.toSet(), sizes.toSet())
     }
 }
