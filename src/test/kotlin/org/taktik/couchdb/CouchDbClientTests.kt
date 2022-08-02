@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -136,7 +137,7 @@ class CouchDbClientTests {
             delay(45000)
             client.update(it)
         }
-        val changes = deferredChanges.await()
+        val changes = withTimeout(50000) { deferredChanges.await() }
         assertEquals(createdCodes.size, changes.size)
         assertEquals(createdCodes.map { it.id }.toSet(), changes.map { it.id }.toSet())
         assertEquals(codes.map { it.code }.toSet(), changes.map { it.doc.code }.toSet())
@@ -155,7 +156,8 @@ class CouchDbClientTests {
                 println("${it.doc.id}:${it.doc.login}")
             } }.take(testSize).toList()
         }
-        val changes = deferredChanges.await()
+
+        val changes = withTimeout(5000) { deferredChanges.await() }
         assertTrue(changes.isNotEmpty())
     }
 
