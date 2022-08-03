@@ -36,5 +36,6 @@ class Attachment(
         @field:JsonProperty("stub")
         val isStub: Boolean = false,
         val revpos: Int = 0,
-        val digest: String? = null
+        val digest: String? = null,
+        val length: Long? = null
 )
