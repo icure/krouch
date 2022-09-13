@@ -376,13 +376,36 @@ interface HeaderHandler {
 class ClientImpl(
     private val httpClient: WebClient,
     private val dbURI: java.net.URI,
-    private val username: String,
-    private val password: String,
+    /**
+     * Function to retrieve credentials as pair username-password.
+     * Credentials returned by this provider may change over time.
+     */
+    private val credentialsProvider: () -> Pair<String, String>,
     private val objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
     private val headerHandlers: Map<String, HeaderHandler> = mapOf(),
     private val timingHandler: ((Long) -> Mono<Unit>)? = null,
 ) : Client {
     private val log = LoggerFactory.getLogger(javaClass.name)
+
+    /**
+     * Alternative constructor for client with constant username and password.
+     */
+    constructor(
+        httpClient: WebClient,
+        dbURI: java.net.URI,
+        username: String,
+        password: String,
+        objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
+        headerHandlers: Map<String, HeaderHandler> = mapOf(),
+        timingHandler: ((Long) -> Mono<Unit>)? = null,
+    ) : this(
+        httpClient,
+        dbURI,
+        { username to password },
+        objectMapper,
+        headerHandlers,
+        timingHandler
+    )
 
     override suspend fun create(q: Int?, n: Int?, requestId: String?): Boolean {
         val request = newRequest(dbURI.let {
@@ -1265,7 +1288,12 @@ class ClientImpl(
         timeoutDuration: Duration? = null,
         requestId: String? = null
     ) =
-        httpClient.uri(uri).method(method, timeoutDuration).basicAuth(username, password)
+        httpClient.uri(uri)
+            .method(method, timeoutDuration)
+            .let {
+                val (username, password) = credentialsProvider()
+                it.basicAuth(username, password)
+            }
             .let { requestId?.let { rid -> it.header("X-Couch-Request-ID", rid) } ?: it }
 
     private fun newRequest(
