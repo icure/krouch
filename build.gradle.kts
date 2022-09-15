@@ -115,22 +115,3 @@ dependencies {
     testImplementation(group = "io.projectreactor", name = "reactor-tools", version = "3.4.10")
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.8.0")
 }
-
-publishing {
-    publications {
-        create<MavenPublication>("krouch") {
-            from(components["java"])
-        }
-    }
-
-    repositories {
-        maven {
-            name = "Taktik"
-            url = uri(mavenReleasesRepository)
-            credentials {
-                username = repoUsername
-                password = repoPassword
-            }
-        }
-    }
-}
