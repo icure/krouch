@@ -31,12 +31,16 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -44,13 +48,15 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.platform.commons.logging.LoggerFactory
 import org.taktik.couchdb.dao.CodeDAO
 import org.taktik.couchdb.entity.*
 import org.taktik.couchdb.exception.CouchDbConflictException
+import org.taktik.couchdb.exception.CouchDbException
 import reactor.tools.agent.ReactorDebugAgent
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URI
 import java.net.URL
@@ -58,6 +64,7 @@ import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
 import java.util.*
+import kotlin.random.Random
 
 @FlowPreview
 @ExperimentalCoroutinesApi
@@ -136,18 +143,17 @@ class CouchDbClientTests {
             delay(45000)
             client.update(it)
         }
-        val changes = deferredChanges.await()
+        val changes = withTimeout(50000) { deferredChanges.await() }
         assertEquals(createdCodes.size, changes.size)
         assertEquals(createdCodes.map { it.id }.toSet(), changes.map { it.id }.toSet())
         assertEquals(codes.map { it.code }.toSet(), changes.map { it.doc.code }.toSet())
     }
 
-
     @Test
     fun testSubscribeUserChanges() = runBlocking {
         val testSize = 100
         val deferredChanges = async {
-            client.subscribeForChanges<org.taktik.couchdb.User>("java_type", {
+            client.subscribeForChanges("java_type", {
                 if (it == "org.taktik.icure.entities.User") {
                     User::class.java
                 } else null
@@ -155,7 +161,8 @@ class CouchDbClientTests {
                 println("${it.doc.id}:${it.doc.login}")
             } }.take(testSize).toList()
         }
-        val changes = deferredChanges.await()
+
+        val changes = withTimeout(5000) { deferredChanges.await() }
         assertTrue(changes.isNotEmpty())
     }
 
@@ -451,5 +458,56 @@ class CouchDbClientTests {
         assertTrue(activeTasks[1] is ViewCompactionTask)
         assertTrue(activeTasks[2] is DatabaseCompactionTask)
         assertTrue(activeTasks[4] is ReplicationTask)
+    }
+
+    @Test
+    fun testCreateAndGetAttachment() = runBlocking {
+        val randomCode = UUID.randomUUID().toString()
+        val created = client.create(Code.from("test", randomCode, "test"))
+        val attachmentId = "attachment1"
+        val attachment = byteArrayOf(1, 2, 3)
+        client.createAttachment(
+            created.id,
+            attachmentId,
+            created.rev!!,
+            "application/json",
+            flowOf(ByteBuffer.wrap(attachment))
+        )
+        val retrievedAttachment = ByteArrayOutputStream().use { os ->
+            @Suppress("BlockingMethodInNonBlockingContext")
+            client.getAttachment(created.id, attachmentId).collect { bb ->
+                if (bb.hasArray() && bb.hasRemaining()) {
+                    os.write(bb.array(), bb.position() + bb.arrayOffset(), bb.remaining())
+                } else {
+                    os.write(ByteArray(bb.remaining()).also { bb.get(it) })
+                }
+            }
+            os.toByteArray()
+        }
+        assertEquals(retrievedAttachment.toList(), attachment.toList())
+        try {
+            client.getAttachment(created.id, "non-existing").first()
+            fail("Should not be able to retrieve non-existing attachment")
+        } catch (e: CouchDbException) {
+            assertEquals(e.statusCode, 404)
+        }
+    }
+
+    fun testAttachmentSize() = runBlocking {
+        val created = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val sizes = listOf(10, 50, 100, 500, 1000, 1234).map { "attachment$it" to it }
+        sizes.fold(created.rev!!) { rev, (id, size) ->
+            val attachment = Random(System.currentTimeMillis()).nextBytes(size)
+            client.createAttachment(
+                created.id,
+                id,
+                rev,
+                "application/json",
+                flowOf(ByteBuffer.wrap(attachment))
+            )
+        }
+        val codeWithAttachments = client.get<Code>(created.id)!!
+        assertEquals(codeWithAttachments.attachments?.size, sizes.size)
+        assertEquals(codeWithAttachments.attachments?.map { it.key to it.value.length?.toInt() }?.toSet(), sizes.toSet())
     }
 }

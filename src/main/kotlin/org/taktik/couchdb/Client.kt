@@ -33,6 +33,7 @@ import io.icure.asyncjacksonhttpclient.net.param
 import io.icure.asyncjacksonhttpclient.net.params
 import io.icure.asyncjacksonhttpclient.net.web.HttpMethod
 import io.icure.asyncjacksonhttpclient.net.web.Request
+import io.icure.asyncjacksonhttpclient.net.web.Response
 import io.icure.asyncjacksonhttpclient.net.web.WebClient
 import io.icure.asyncjacksonhttpclient.parser.EndArray
 import io.icure.asyncjacksonhttpclient.parser.EndObject
@@ -375,13 +376,36 @@ interface HeaderHandler {
 class ClientImpl(
     private val httpClient: WebClient,
     private val dbURI: java.net.URI,
-    private val username: String,
-    private val password: String,
+    /**
+     * Function to retrieve credentials as pair username-password.
+     * Credentials returned by this provider may change over time.
+     */
+    private val credentialsProvider: () -> Pair<String, String>,
     private val objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
     private val headerHandlers: Map<String, HeaderHandler> = mapOf(),
     private val timingHandler: ((Long) -> Mono<Unit>)? = null,
 ) : Client {
     private val log = LoggerFactory.getLogger(javaClass.name)
+
+    /**
+     * Alternative constructor for client with constant username and password.
+     */
+    constructor(
+        httpClient: WebClient,
+        dbURI: java.net.URI,
+        username: String,
+        password: String,
+        objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
+        headerHandlers: Map<String, HeaderHandler> = mapOf(),
+        timingHandler: ((Long) -> Mono<Unit>)? = null,
+    ) : this(
+        httpClient,
+        dbURI,
+        { username to password },
+        objectMapper,
+        headerHandlers,
+        timingHandler
+    )
 
     override suspend fun create(q: Int?, n: Int?, requestId: String?): Boolean {
         val request = newRequest(dbURI.let {
@@ -601,7 +625,7 @@ class ClientImpl(
         val request =
             newRequest(dbURI.append(id).append(attachmentId).let { u -> rev?.let { u.param("rev", it) } ?: u })
 
-        return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toBytesFlow()
+        return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toBytesFlow()
     }
 
     override suspend fun deleteAttachment(id: String, attachmentId: String, rev: String, requestId: String?): String {
@@ -917,7 +941,7 @@ class ClientImpl(
                                             ViewRowNoDoc(it, key, value)
                                         }
                                         emit(row)
-                                    } ?: if (value is Int) {
+                                    } ?: if (value is Int || value is Long) {
                                         emit(ViewRowNoDoc("", key, value))
                                     }
 
@@ -1264,7 +1288,12 @@ class ClientImpl(
         timeoutDuration: Duration? = null,
         requestId: String? = null
     ) =
-        httpClient.uri(uri).method(method, timeoutDuration).basicAuth(username, password)
+        httpClient.uri(uri)
+            .method(method, timeoutDuration)
+            .let {
+                val (username, password) = credentialsProvider()
+                it.basicAuth(username, password)
+            }
             .let { requestId?.let { rid -> it.header("X-Couch-Request-ID", rid) } ?: it }
 
     private fun newRequest(
@@ -1316,34 +1345,37 @@ class ClientImpl(
 
     private fun Request.toFlow() = this
         .retrieveAndInjectRequestId(headerHandlers, timingHandler)
-        .onStatus(SC_UNAUTHORIZED) { response ->
-            throw CouchDbException(
-                "Unauthorized Access",
-                response.statusCode,
-                response.responseBodyAsString(),
-                couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
-                couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
-            )
-        }
-        .onStatus(SC_NOT_FOUND) { response ->
-            throw CouchDbException(
-                "Document not found",
-                response.statusCode,
-                response.responseBodyAsString(),
-                couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
-                couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
-            )
-        }
-        .onStatus(SC_CONFLICT) { response ->
-            throw CouchDbConflictException(
-                "Document update Conflict",
-                response.statusCode,
-                response.responseBodyAsString(),
-                couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
-                couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
-            )
-        }
+        .registerStatusMappers()
         .toFlow()
+
+    private fun Response.registerStatusMappers() =
+            onStatus(SC_UNAUTHORIZED) { response ->
+                throw CouchDbException(
+                        "Unauthorized Access",
+                        response.statusCode,
+                        response.responseBodyAsString(),
+                        couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
+                        couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
+                )
+            }
+            .onStatus(SC_NOT_FOUND) { response ->
+                throw CouchDbException(
+                        "Document not found",
+                        response.statusCode,
+                        response.responseBodyAsString(),
+                        couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
+                        couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
+                )
+            }
+            .onStatus(SC_CONFLICT) { response ->
+                throw CouchDbConflictException(
+                        "Document update Conflict",
+                        response.statusCode,
+                        response.responseBodyAsString(),
+                        couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
+                        couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
+                )
+            }
 
     private suspend inline fun <reified T> Request.getCouchDbResponse(nullIf404: Boolean = false): T? =
         getCouchDbResponse(object : TypeReference<T>() {}, null is T, nullIf404)
