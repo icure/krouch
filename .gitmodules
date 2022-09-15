@@ -1,0 +1,3 @@
+[submodule "icure-pre-commit"]
+	path = icure-pre-commit
+	url = ../icure-pre-commit
