@@ -24,6 +24,7 @@ val mavenReleasesRepository: String by project
 plugins {
     kotlin("jvm") version "1.4.32"
     kotlin("kapt") version "1.4.32"
+    `maven-publish`
 }
 
 buildscript {
@@ -96,7 +97,6 @@ dependencies {
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = "1.4.3")
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.3.4")
 
-
     implementation(group = "org.slf4j", name = "slf4j-api", version = "1.7.32")
 
     implementation(group = "com.google.guava", name = "guava", version = "30.1.1-jre")
@@ -114,4 +114,17 @@ dependencies {
 
     testImplementation(group = "io.projectreactor", name = "reactor-tools", version = "3.4.10")
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.8.0")
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "Taktik"
+            url = uri(mavenReleasesRepository)
+            credentials {
+                username = repoUsername
+                password = repoPassword
+            }
+        }
+    }
 }
