@@ -76,12 +76,6 @@ tasks.withType<KotlinCompile> {
     }
 }
 
-tasks.withType<PublishToMavenRepository> {
-    doFirst {
-        println("Artifact >>> ${project.group}:${project.name}:${project.version} <<< published to Maven repository")
-    }
-}
-
 dependencies {
     api("com.github.pozo:mapstruct-kotlin:1.3.1.2")
     kapt("com.github.pozo:mapstruct-kotlin-processor:1.3.1.2")
@@ -117,6 +111,12 @@ dependencies {
 }
 
 publishing {
+    publications {
+        create<MavenPublication>("krouch") {
+            from(components["java"])
+        }
+    }
+
     repositories {
         maven {
             name = "Taktik"
