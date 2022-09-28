@@ -40,7 +40,6 @@ buildscript {
     }
 }
 
-apply(plugin = "maven-repository")
 apply(plugin = "git-version")
 
 val gitVersion: String? by project
