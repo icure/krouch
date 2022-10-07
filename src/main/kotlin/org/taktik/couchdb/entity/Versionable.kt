@@ -17,14 +17,9 @@
 
 package org.taktik.couchdb.entity
 
-import org.taktik.couchdb.id.Identifiable
-
 /**
  * @param <T> The type of the entity identity (a String, a UUID, etc.)
 </T> */
-interface Versionable<T> : Identifiable<T> {
+interface Versionable<T> : Revisionable<T> {
     val revHistory: Map<String, String>?
-    val rev: String?
-
-    fun withIdRev(id: T? = null, rev: String): Versionable<T>
 }
