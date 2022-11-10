@@ -35,7 +35,7 @@ class SimpleViewGenerator {
     fun generateViews(
             repository: Any,
     ): Map<String, org.taktik.couchdb.entity.View> {
-        val views: MutableMap<String, org.taktik.couchdb.entity.View> = HashMap()
+        val views = mutableMapOf<String, org.taktik.couchdb.entity.View>()
         val repositoryClass: Class<*> = repository.javaClass
         createDeclaredViews(views, repositoryClass)
         return views
