@@ -4,10 +4,11 @@ import org.junit.jupiter.api.Test
 import org.taktik.couchdb.dao.UserDAO
 import org.taktik.couchdb.support.StdDesignDocumentFactory
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.RepeatedTest
 
 class VersionHashingTest {
 
-    @Test
+    @RepeatedTest(value = 1000)
     fun calculatingTheHashMultipleTimesReturnsTheSameResult() {
         val documentFactory = StdDesignDocumentFactory()
 
