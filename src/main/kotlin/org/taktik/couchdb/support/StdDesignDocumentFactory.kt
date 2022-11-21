@@ -57,7 +57,7 @@ class StdDesignDocumentFactory {
         )
     }
 
-    private fun createViewVersionHash(views: Collection<org.taktik.couchdb.entity.View>) = DigestUtils.sha256Hex(views.joinToString { it.toString() }).substring(0, 4)
+    private fun createViewVersionHash(views: Collection<org.taktik.couchdb.entity.View>) = DigestUtils.sha256Hex(views.sortedBy { it.map }.joinToString { it.toString() }).substring(0, 4)
 
     private fun createFilterFunctions(metaDataClass: Class<*>): Map<String, String> {
         val shows: MutableMap<String, String> = HashMap()
