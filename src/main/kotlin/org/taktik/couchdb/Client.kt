@@ -695,6 +695,9 @@ class ClientImpl(
     override suspend fun <T : CouchDbDocument> update(entity: T, clazz: Class<T>, requestId: String?): T {
         val docId = entity.id
         require(docId.isNotBlank()) { "Id cannot be blank" }
+        require(entity.rev != null) { "rev cannot be null"}
+        require(entity.rev!!.isNotBlank()) { "rev cannot be blank"}
+        require(entity.rev!!.matches(Regex("^[0-9]+-[a-z0-9]+$"))) { "Invalid rev format" }
         val updateURI = dbURI.append(docId)
 
         @Suppress("BlockingMethodInNonBlockingContext")
