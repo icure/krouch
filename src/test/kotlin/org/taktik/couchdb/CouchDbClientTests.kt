@@ -51,6 +51,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.taktik.couchdb.dao.CodeDAO
 import org.taktik.couchdb.entity.*
 import org.taktik.couchdb.exception.CouchDbConflictException
@@ -58,6 +59,7 @@ import org.taktik.couchdb.exception.CouchDbException
 import reactor.tools.agent.ReactorDebugAgent
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.lang.IllegalArgumentException
 import java.net.URI
 import java.net.URL
 import java.nio.ByteBuffer
@@ -458,6 +460,44 @@ class CouchDbClientTests {
         assertTrue(activeTasks[1] is ViewCompactionTask)
         assertTrue(activeTasks[2] is DatabaseCompactionTask)
         assertTrue(activeTasks[4] is ReplicationTask)
+    }
+
+    @Test
+    fun testUpdate() = runBlocking {
+        val created = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val newId = UUID.randomUUID().toString()
+        val updated = client.update(created.copy(code = newId))
+        assertEquals(newId, updated.code)
+    }
+
+    @Test
+    fun testUpdateWithEmptyRev(): Unit = runBlocking {
+        val created = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val newId = UUID.randomUUID().toString()
+
+        assertThrows<IllegalArgumentException> {
+            client.update(created.copy(rev = "", code = newId))
+        }
+    }
+
+    @Test
+    fun testUpdateWithNullRev(): Unit = runBlocking {
+        val created = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val newId = UUID.randomUUID().toString()
+
+        assertThrows<IllegalArgumentException> {
+            client.update(created.copy(rev = null, code = newId))
+        }
+    }
+
+    @Test
+    fun testUpdateWithNonValidRev(): Unit = runBlocking {
+        val created = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val newId = UUID.randomUUID().toString()
+
+        assertThrows<IllegalArgumentException> {
+            client.update(created.copy(rev = UUID.randomUUID().toString(), code = newId))
+        }
     }
 
     @Test
