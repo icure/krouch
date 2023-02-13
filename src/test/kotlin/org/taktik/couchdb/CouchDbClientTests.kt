@@ -31,14 +31,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.fold
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions
@@ -497,6 +490,39 @@ class CouchDbClientTests {
 
         assertThrows<IllegalArgumentException> {
             client.update(created.copy(rev = UUID.randomUUID().toString(), code = newId))
+        }
+    }
+
+    @Test
+    fun testBulkUpdateWithEmptyRev(): Unit = runBlocking {
+        val code1 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val code2 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val newId = UUID.randomUUID().toString()
+
+        assertThrows<IllegalArgumentException> {
+            client.bulkUpdate(listOf(code1.copy(code = newId), code2.copy(rev = "", code = newId))).collect()
+        }
+    }
+
+    @Test
+    fun testBulkUpdateWithNullRev(): Unit = runBlocking {
+        val code1 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val code2 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val newId = UUID.randomUUID().toString()
+
+        assertThrows<IllegalArgumentException> {
+            client.bulkUpdate(listOf(code1.copy(code = newId), code2.copy(rev = null, code = newId))).collect()
+        }
+    }
+
+    @Test
+    fun testBulkUpdateWithNonValidRev(): Unit = runBlocking {
+        val code1 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val code2 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val newId = UUID.randomUUID().toString()
+
+        assertThrows<IllegalArgumentException> {
+            client.bulkUpdate(listOf(code1.copy(code = newId), code2.copy(rev = UUID.randomUUID().toString(), code = newId))).collect()
         }
     }
 

@@ -734,6 +734,11 @@ class ClientImpl(
     ): Flow<BulkUpdateResult> =
         flow {
             coroutineScope {
+                entities.forEach {
+                    require(it.rev != null) { "rev cannot be null"}
+                    require(it.rev!!.isNotBlank()) { "rev cannot be blank"}
+                    require(it.rev!!.matches(Regex("^[0-9]+-[a-z0-9]+$"))) { "Invalid rev format" }
+                }
                 emitUpdateResults(this, BulkUpdateRequest(entities), requestId)
             }
         }
