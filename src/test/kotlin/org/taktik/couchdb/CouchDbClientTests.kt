@@ -494,6 +494,19 @@ class CouchDbClientTests {
     }
 
     @Test
+    fun testBulkUpdate(): Unit = runBlocking {
+        val code1 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val code2 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
+        val newId = UUID.randomUUID().toString()
+
+        assertEquals(
+            2,
+            client.bulkUpdate(listOf(code1.copy(rev = null, code = newId), code2.copy(code = newId))).count()
+        )
+
+    }
+
+    @Test
     fun testBulkUpdateWithEmptyRev(): Unit = runBlocking {
         val code1 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
         val code2 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
@@ -501,17 +514,6 @@ class CouchDbClientTests {
 
         assertThrows<IllegalArgumentException> {
             client.bulkUpdate(listOf(code1.copy(code = newId), code2.copy(rev = "", code = newId))).collect()
-        }
-    }
-
-    @Test
-    fun testBulkUpdateWithNullRev(): Unit = runBlocking {
-        val code1 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
-        val code2 = client.create(Code.from("test", UUID.randomUUID().toString(), "test"))
-        val newId = UUID.randomUUID().toString()
-
-        assertThrows<IllegalArgumentException> {
-            client.bulkUpdate(listOf(code1.copy(code = newId), code2.copy(rev = null, code = newId))).collect()
         }
     }
 
