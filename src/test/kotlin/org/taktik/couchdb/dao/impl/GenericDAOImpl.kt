@@ -29,12 +29,15 @@ abstract class GenericDAOImpl<T : CouchDbDocument>(protected val entityClass: Cl
 
     val designDocumentId = "_design/${entityClass.simpleName}"
 
-    override suspend fun createOrUpdateDesignDocument(updateIfExists: Boolean, useVersioning: Boolean) {
-        val designDocument = StdDesignDocumentFactory().generateFrom(designDocumentId, this, useVersioning)
-        val existingDesignDocument: DesignDocument? = client.get(designDocument.id) ?: client.get(designDocumentId)
-        val (merged, changed) = existingDesignDocument?.mergeWith(designDocument, true) ?: (designDocument to true)
-        if (changed && (existingDesignDocument == null || updateIfExists)) {
-            client.update(existingDesignDocument?.let { if (it.id == designDocument.id) merged.copy(rev = it.rev) else merged } ?: merged, DesignDocument::class.java)
+    override suspend fun createOrUpdateDesignDocuments(updateIfExists: Boolean, useVersioning: Boolean) {
+        val designDocuments = StdDesignDocumentFactory().generateFrom(designDocumentId, this, useVersioning)
+        designDocuments.forEach { designDocument ->
+            val existingDesignDocument: DesignDocument? = client.get(designDocument.id)
+            val (merged, changed) = existingDesignDocument?.mergeWith(designDocument, true) ?: (designDocument to true)
+            if (changed && (existingDesignDocument == null || updateIfExists)) {
+                existingDesignDocument?.let { client.update(if (it.id == designDocument.id) merged.copy(rev = it.rev) else merged, DesignDocument::class.java) }
+                    ?: client.create(merged, DesignDocument::class.java)
+            }
         }
     }
 }

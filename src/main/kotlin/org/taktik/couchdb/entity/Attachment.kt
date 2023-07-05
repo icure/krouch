@@ -28,7 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-class Attachment(
+data class Attachment(
         @JsonIgnore val id: String? = null,
         @field:JsonProperty("content_type") val contentType: String? = null,
         @JsonIgnore val contentLength: Long = 0,

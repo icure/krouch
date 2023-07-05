@@ -93,7 +93,7 @@ class CouchDbClientTests {
                 client.create(8, 2)
             }
             try {
-                testDAO.createOrUpdateDesignDocument()
+                testDAO.createOrUpdateDesignDocuments(true, false)
             } catch (e: Exception) {}
         }
     }
@@ -113,7 +113,7 @@ class CouchDbClientTests {
         val codes = List(testSize) { Code.from("test", UUID.randomUUID().toString(), "test") }
         val createdCodes = codes.map {
             delay(300)
-            client.update(it)
+            client.create(it)
         }
         val changes = deferredChanges.await()
         assertEquals(createdCodes.size, changes.size)
@@ -136,7 +136,7 @@ class CouchDbClientTests {
         val codes = List(testSize) { Code.from("test", UUID.randomUUID().toString(), "test") }
         val createdCodes = codes.map {
             delay(45000)
-            client.update(it)
+            client.create(it)
         }
         val changes = withTimeout(50000) { deferredChanges.await() }
         assertEquals(createdCodes.size, changes.size)
@@ -149,13 +149,15 @@ class CouchDbClientTests {
         val testSize = 100
         val deferredChanges = async {
             client.subscribeForChanges("java_type", {
-                if (it == "org.taktik.icure.entities.User") {
+                if (it == "User") {
                     User::class.java
                 } else null
             }, "0").map { it.also {
                 println("${it.doc.id}:${it.doc.login}")
             } }.take(testSize).toList()
         }
+
+        val users = List(testSize) { User(UUID.randomUUID().toString()) }.map { client.create(it) }
 
         val changes = withTimeout(5000) { deferredChanges.await() }
         assertTrue(changes.isNotEmpty())
@@ -236,6 +238,16 @@ class CouchDbClientTests {
         val flow = client.queryViewIncludeDocs<String, String, Code>(query)
         val codes = flow.toList()
         assertEquals(limit, codes.size)
+
+        val otherQuery = ViewQuery()
+            .designDocId("_design/Aside")
+            .viewName("by_type_aside")
+            .limit(limit)
+            .includeDocs(true)
+        val otherFlow = client.queryViewIncludeDocs<List<String>, Int, Code>(otherQuery)
+        val otherCodes = otherFlow.toList()
+        assertEquals(limit, otherCodes.size)
+
     }
 
     @Test

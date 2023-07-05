@@ -30,8 +30,11 @@ import org.taktik.couchdb.entity.ComplexKey
 import org.taktik.couchdb.entity.ViewQuery
 import org.taktik.couchdb.queryViewIncludeDocs
 
-@Views(View(name = "all", map = "function(doc) { if (doc.java_type == 'Code' && !doc.deleted) emit(null, doc._id )}"),
-       View(name = "by_type", map = "classpath:js/code/by_type.js"))
+@Views(
+    View(name = "all", map = "function(doc) { if (doc.java_type == 'Code' && !doc.deleted) emit(null, doc._id )}"),
+    View(name = "by_type", map = "classpath:js/code/by_type.js"),
+    View(name = "by_type_aside", map = "classpath:js/code/by_type.js", secondaryPartition = "Aside"),
+    )
 class CodeDAO(client: Client) : GenericDAOImpl<Code>(Code::class.java, client) {
 
     @ExperimentalCoroutinesApi

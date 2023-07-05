@@ -72,4 +72,11 @@ annotation class View(
          *
          * @return
          */
-        val file: String = "")
+        val file: String = "",
+
+        /**
+         * It is sometimes necessary to store some views in a separate partition. This parameter allows you to set the name of that partition.
+         *
+         */
+        val secondaryPartition: String = ""
+)

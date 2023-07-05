@@ -5,19 +5,19 @@ import kotlinx.coroutines.flow.flow
 import org.taktik.couchdb.User
 import org.taktik.couchdb.annotation.View
 
-@View(name = "all", map = "function(doc) { if (doc.java_type == 'org.taktik.icure.entities.User' && !doc.deleted) emit( null, doc._rev )}")
+@View(name = "all", map = "function(doc) { if (doc.java_type == 'User' && !doc.deleted) emit( null, doc._rev )}")
 class UserDAO() {
-    @View(name = "by_exp_date", map = "function(doc) {  if (doc.java_type == 'org.taktik.icure.entities.User' && !doc.deleted && doc.expirationDate) {emit(doc.expirationDate.epochSecond, doc._id)  }}")
+    @View(name = "by_exp_date", map = "function(doc) {  if (doc.java_type == 'User' && !doc.deleted && doc.expirationDate) {emit(doc.expirationDate.epochSecond, doc._id)  }}")
     fun getExpiredUsers(): Flow<User> = flow {
         User(id="test")
     }
 
-    @View(name = "by_username", map = "function(doc) {  if (doc.java_type == 'org.taktik.icure.entities.User' && !doc.deleted) {emit(doc.login, null)}}")
+    @View(name = "by_username", map = "function(doc) {  if (doc.java_type == 'User' && !doc.deleted) {emit(doc.login, null)}}")
     fun listUsersByUsername(): Flow<User> = flow {
         User(id="test")
     }
 
-    @View(name = "by_email", map = "function(doc) {  if (doc.java_type == 'org.taktik.icure.entities.User' && !doc.deleted && doc.email) {emit(doc.email, null)}}")
+    @View(name = "by_email", map = "function(doc) {  if (doc.java_type == 'User' && !doc.deleted && doc.email) {emit(doc.email, null)}}")
     fun listUsersByEmail(): Flow<User> = flow {
         User(id="test")
     }
@@ -30,7 +30,7 @@ class UserDAO() {
     /**
      * startKey in pagination is the email of the patient.
      */
-    @View(name = "allForPagination", map = "map = function (doc) { if (doc.java_type == 'org.taktik.icure.entities.User' && !doc.deleted) { emit(doc.login, null); }};")
+    @View(name = "allForPagination", map = "map = function (doc) { if (doc.java_type == 'User' && !doc.deleted) { emit(doc.login, null); }};")
     fun findUsers(): Flow<User> = flow {
         User(id="test")
     }

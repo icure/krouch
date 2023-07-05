@@ -12,8 +12,8 @@ class VersionHashingTest {
     fun calculatingTheHashMultipleTimesReturnsTheSameResult() {
         val documentFactory = StdDesignDocumentFactory()
 
-        val design1 = documentFactory.generateFrom("_design/User", UserDAO())
-        val design2 = documentFactory.generateFrom("_design/User", UserDAO())
+        val design1 = documentFactory.generateFrom("_design/User", UserDAO()).first()
+        val design2 = documentFactory.generateFrom("_design/User", UserDAO()).first()
 
         assertEquals(design2.id, design1.id)
     }

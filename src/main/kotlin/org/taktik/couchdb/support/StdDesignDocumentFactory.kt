@@ -34,7 +34,7 @@ import java.io.FileNotFoundException
 
 /**
  *
- * @author Antoine Duchâteau, based on of Ektrop by henrik lundgren
+ * @author Antoine Duchâteau, based on of Ektorp by henrik lundgren
  */
 class StdDesignDocumentFactory {
     var viewGenerator = SimpleViewGenerator()
@@ -44,17 +44,21 @@ class StdDesignDocumentFactory {
      *
      * @see org.ektorp.support.DesignDocumentFactory#generateFrom(java.lang.Object)
      */
-    fun generateFrom(baseId: String, metaDataSource: Any, useVersioning: Boolean = true): DesignDocument {
+    fun generateFrom(baseId: String, metaDataSource: Any, useVersioning: Boolean = true): Set<DesignDocument> {
+        val (prefix, suffix) = baseId.split("/").let { it.subList(0, it.size - 1).joinToString("/") to it.last() }
         val metaDataClass: Class<*> = metaDataSource.javaClass
-        val views = viewGenerator.generateViews(metaDataSource)
-        return DesignDocument(
-                id = if (useVersioning) "${baseId}_${createViewVersionHash(views.values)}" else baseId,
-                views = views,
+        val views = viewGenerator.generateViews(metaDataSource, suffix)
+
+        return views.toList().groupBy { (k,_) -> k.split("/")[0] }.map { (name, views) ->
+            DesignDocument(
+                id = if (useVersioning) "${prefix}/${name}_${createViewVersionHash(views.map { it.second })}" else "${prefix}/${name}",
+                views = views.associate { (k, v) -> k.split("/")[1] to v },
                 lists = createListFunctions(metaDataClass),
                 shows = createShowFunctions(metaDataClass),
                 filters = createFilterFunctions(metaDataClass),
                 updateHandlers = createUpdateHandlerFunctions(metaDataClass)
-        )
+            )
+        }.toSet()
     }
 
     private fun createViewVersionHash(views: Collection<org.taktik.couchdb.entity.View>) = DigestUtils.sha256Hex(views.sortedBy { it.map }.joinToString { it.toString() }).substring(0, 4)
