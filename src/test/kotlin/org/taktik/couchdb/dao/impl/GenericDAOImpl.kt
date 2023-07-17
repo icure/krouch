@@ -30,7 +30,7 @@ abstract class GenericDAOImpl<T : CouchDbDocument>(protected val entityClass: Cl
     val designDocumentId = "_design/${entityClass.simpleName}"
 
     override suspend fun createOrUpdateDesignDocuments(updateIfExists: Boolean, useVersioning: Boolean) {
-        val designDocuments = StdDesignDocumentFactory().generateFrom(designDocumentId, this, useVersioning)
+            val designDocuments = StdDesignDocumentFactory().generateFrom(designDocumentId, this, useVersioning)
         designDocuments.forEach { designDocument ->
             val existingDesignDocument: DesignDocument? = client.get(designDocument.id)
             val (merged, changed) = existingDesignDocument?.mergeWith(designDocument, true) ?: (designDocument to true)

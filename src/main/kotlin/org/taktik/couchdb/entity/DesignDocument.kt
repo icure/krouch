@@ -71,11 +71,27 @@ data class DesignDocument(
 
     private fun mergeViews(mergeViews: Map<String, View>, updateOnDiff: Boolean) =
             mergeViews.entries.fold(null as Map<String, View>?) { res, (name, view) ->
-                if (!views.containsKey(name) || (updateOnDiff && views[name] != view)) views + (name to view) else res
+                if (!views.containsKey(name) || (updateOnDiff && (views[name] != view))) views + (name to view) else res
             }
 }
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 @KotlinBuilder
-data class View(val map: String, val reduce: String? = null)
+data class View(val map: String, val reduce: String? = null) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as View
+
+        if (map.replace("^map *= *function".toRegex(), "function") != other.map.replace("^map *= *function".toRegex(), "function")) return false
+        return reduce == other.reduce
+    }
+
+    override fun hashCode(): Int {
+        var result = map.replace("^map *= *function".toRegex(), "function").hashCode()
+        result = 31 * result + (reduce?.hashCode() ?: 0)
+        return result
+    }
+}
