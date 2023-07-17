@@ -384,6 +384,7 @@ class ClientImpl(
     private val objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
     private val headerHandlers: Map<String, HeaderHandler> = mapOf(),
     private val timingHandler: ((Long) -> Mono<Unit>)? = null,
+    private val strictMode: Boolean = false,
 ) : Client {
     private val log = LoggerFactory.getLogger(javaClass.name)
 
@@ -695,9 +696,15 @@ class ClientImpl(
     override suspend fun <T : CouchDbDocument> update(entity: T, clazz: Class<T>, requestId: String?): T {
         val docId = entity.id
         require(docId.isNotBlank()) { "Id cannot be blank" }
-        require(entity.rev != null) { "rev cannot be null"}
-        require(entity.rev!!.isNotBlank()) { "rev cannot be blank"}
-        require(entity.rev!!.matches(Regex("^[0-9]+-[a-z0-9]+$"))) { "Invalid rev format" }
+        if (strictMode) {
+            require(entity.rev != null) { "rev cannot be null"}
+            require(entity.rev!!.isNotBlank()) { "rev cannot be blank"}
+            require(entity.rev!!.matches(Regex("^[0-9]+-[a-z0-9]+$"))) { "Invalid rev format" }
+        } else {
+            if (entity.rev.isNullOrBlank()) {
+                log.warn("Try to update {} of class {} with null or blank revision", docId, clazz)
+            }
+        }
         val updateURI = dbURI.append(docId)
 
         @Suppress("BlockingMethodInNonBlockingContext")
