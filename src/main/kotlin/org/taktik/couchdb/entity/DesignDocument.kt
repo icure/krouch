@@ -85,9 +85,11 @@ data class View(val map: String, val reduce: String? = null) {
 
         other as View
 
-        if (map.replace("^map *= *function".toRegex(), "function") != other.map.replace("^map *= *function".toRegex(), "function")) return false
+        if (normalize(map) != normalize(other.map)) return false
         return reduce == other.reduce
     }
+
+    private fun normalize(map: String) = map.replace("^map *= *function *".toRegex(), "function").replace("[ \t\n\r;]*$".toRegex(), "")
 
     override fun hashCode(): Int {
         var result = map.replace("^map *= *function".toRegex(), "function").hashCode()

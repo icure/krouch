@@ -8,7 +8,8 @@ class ViewTest {
 
     @Test
     fun testEquals() {
-        assertEquals(View(map = "map = function(doc) { emit(1) }"), View(map = "function(doc) { emit(1) }"))
+        assertEquals(View(map = "map = function (doc) { emit(1) }"), View(map = "function(doc) { emit(1) }"))
+        assertEquals(View(map = "function(doc) { emit(1) };\n"), View(map = "function(doc) { emit(1) }\n"))
         assertNotEquals(View(map = "map = function(doc) { emit(2) }"), View(map = "function(doc) { emit(1) }"))
     }
 }
