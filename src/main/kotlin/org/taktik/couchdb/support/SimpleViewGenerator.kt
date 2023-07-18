@@ -31,7 +31,7 @@ import java.io.FileNotFoundException
  */
 class SimpleViewGenerator {
 
-    private fun View.fullName(baseId: String) = this.secondaryPartition.takeIf { it.isNotBlank() }?.let { "$it/${this.name}" } ?: "${baseId}/${this.name}"
+    private fun View.fullName(baseId: String) = this.secondaryPartition.takeIf { it.isNotBlank() }?.let { "${baseId}-${it}/${this.name}" } ?: "${baseId}/${this.name}"
 
     fun generateViews(
             repository: Any,

@@ -75,9 +75,11 @@ class CouchDbClientTests {
     private val httpClient = NettyWebClient()
     private val client = ClientImpl(
         httpClient,
-            URI("$databaseHost/$databaseName"),
-            userName,
-            password)
+        URI("$databaseHost/$databaseName"),
+        userName,
+        password,
+        strictMode = true
+    )
 
     private val testDAO = CodeDAO(client)
 
@@ -240,7 +242,7 @@ class CouchDbClientTests {
         assertEquals(limit, codes.size)
 
         val otherQuery = ViewQuery()
-            .designDocId("_design/Aside")
+            .designDocId("_design/Code-Aside")
             .viewName("by_type_aside")
             .limit(limit)
             .includeDocs(true)

@@ -399,13 +399,15 @@ class ClientImpl(
         objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
         headerHandlers: Map<String, HeaderHandler> = mapOf(),
         timingHandler: ((Long) -> Mono<Unit>)? = null,
+        strictMode: Boolean = false
     ) : this(
         httpClient,
         dbURI,
         { username to password },
         objectMapper,
         headerHandlers,
-        timingHandler
+        timingHandler,
+        strictMode
     )
 
     override suspend fun create(q: Int?, n: Int?, requestId: String?): Boolean {
