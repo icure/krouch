@@ -1001,6 +1001,7 @@ class ClientImpl(
         heartBeatCallback: () -> Unit
     ): Flow<Change<T>> = channelFlow {
         var lastSeq = since
+        var retriesWithoutSeqUpdate = 0
         var delayMillis = initialBackOffDelay
         var latestHeartbeat = Instant.now().toEpochMilli()
 
@@ -1014,6 +1015,7 @@ class ClientImpl(
                         log.warn("Error detected while listening for changes", e)
                     }.collect { change ->
                         lastSeq = change.seq
+                        retriesWithoutSeqUpdate = 0
                         delayMillis = initialBackOffDelay
                         send(change)
                     }
@@ -1040,6 +1042,13 @@ class ClientImpl(
                 // Attempt to re-subscribe indefinitely, with an exponential backoff
                 delayMillis = (delayMillis * backOffFactor).coerceAtMost(maxDelay)
             } catch (e: NoHeartbeatException) {
+                if (retriesWithoutSeqUpdate >= 3) {
+                    "No changes nor Heartbeat detected for multiple times with seq $lastSeq, aborting subscription. Corrupted change?.".let {
+                        log.error(it, e)
+                        throw IllegalStateException(it, e)
+                    }
+                }
+                retriesWithoutSeqUpdate++
                 log.warn("No heartbeat cancellation $e caught while listening for changes on ${dbURI}. Will try to re-subscribe in ${delayMillis}ms")
                 log.warn("Resubscribing to $dbURI")
             }
