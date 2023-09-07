@@ -35,7 +35,6 @@ buildscript {
     dependencies {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.4.32")
         classpath("org.jetbrains.kotlin:kotlin-allopen:1.4.32")
-        classpath("com.taktik.gradle:gradle-plugin-maven-repository:1.0.2")
         classpath("com.taktik.gradle:gradle-plugin-git-version:2.0.4")
     }
 }
