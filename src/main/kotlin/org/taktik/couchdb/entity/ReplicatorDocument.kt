@@ -22,7 +22,6 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
-import com.github.pozo.KotlinBuilder
 import org.taktik.couchdb.CouchDbDocument
 import org.taktik.couchdb.handlers.ZonedDateTimeDeserializer
 import org.taktik.couchdb.handlers.ZonedDateTimeSerializer
@@ -31,7 +30,6 @@ import java.time.ZonedDateTime
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-@KotlinBuilder
 data class ReplicatorDocument(
         @JsonProperty("_id") override val id: String,
         @JsonProperty("_rev") override val rev: String?,
@@ -56,7 +54,6 @@ data class ReplicatorDocument(
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-@KotlinBuilder
 data class ReplicationStats(
         @JsonProperty("revisions_checked") val revisionsChecked: Int? = null,
         @JsonProperty("missing_revisions_found") val missingRevisionsFound: Int? = null,

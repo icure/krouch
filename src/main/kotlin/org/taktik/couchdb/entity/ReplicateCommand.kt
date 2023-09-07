@@ -3,12 +3,10 @@ package org.taktik.couchdb.entity
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.github.pozo.KotlinBuilder
 import java.net.URI
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-@KotlinBuilder
 data class ReplicateCommand(
         @JsonProperty("_id") val id: String? = null,
         val continuous: Boolean = false,
@@ -22,21 +20,18 @@ data class ReplicateCommand(
 ) {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
-    @KotlinBuilder
-    data class Remote(
+        data class Remote(
             val url: String,
             val auth: Authentication? = null
     ) {
         @JsonInclude(JsonInclude.Include.NON_NULL)
         @JsonIgnoreProperties(ignoreUnknown = true)
-        @KotlinBuilder
-        data class Authentication(
+                data class Authentication(
                 val basic: Basic? = null
         ) {
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonIgnoreProperties(ignoreUnknown = true)
-            @KotlinBuilder
-            data class Basic (
+                        data class Basic (
                     val username: String,
                     val password: String
                     )

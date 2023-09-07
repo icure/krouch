@@ -23,7 +23,6 @@ val mavenReleasesRepository: String by project
 
 plugins {
     kotlin("jvm") version "1.8.10"
-    kotlin("kapt") version "1.8.10"
     `maven-publish`
 }
 
@@ -76,8 +75,6 @@ tasks.withType<KotlinCompile> {
 }
 
 dependencies {
-    api("com.github.pozo:mapstruct-kotlin:1.3.1.2")
-    kapt("com.github.pozo:mapstruct-kotlin-processor:1.3.1.2")
 
     implementation(group = "io.icure", name = "async-jackson-http-client", version = "0.1.19-a58db0150a")
 
