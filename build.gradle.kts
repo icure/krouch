@@ -78,13 +78,13 @@ dependencies {
 
     implementation(group = "io.icure", name = "async-jackson-http-client", version = "0.1.19-a58db0150a")
 
-    implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = "2.14.2")
+    implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = "2.15.1")
     implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = "2.14.2")
 
     implementation(group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version = "1.8.10")
     implementation(group = "org.jetbrains.kotlin", name = "kotlin-reflect", version = "1.8.10")
-    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = "1.6.4")
-    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = "1.6.4")
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = "1.7.1")
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = "1.7.1")
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.3.5")
 
     implementation(group = "org.slf4j", name = "slf4j-api", version = "1.7.32")
