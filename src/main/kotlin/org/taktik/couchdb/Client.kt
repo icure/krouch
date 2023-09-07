@@ -66,7 +66,6 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.fold
@@ -91,6 +90,7 @@ import org.taktik.couchdb.entity.Versionable
 import org.taktik.couchdb.entity.ViewQuery
 import org.taktik.couchdb.exception.CouchDbConflictException
 import org.taktik.couchdb.exception.CouchDbException
+import org.taktik.couchdb.exception.SkippedQueryException
 import org.taktik.couchdb.exception.ViewResultException
 import org.taktik.couchdb.mango.MangoQuery
 import org.taktik.couchdb.mango.MangoResultException
@@ -856,7 +856,14 @@ class ClientImpl(
 
             /** Execute the request and get the response as a Flow of [JsonEvent] **/
             val jsonEvents =
-                request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toJsonEvents(asyncParser).produceIn(this)
+                request.retrieveAndInjectRequestId(headerHandlers, timingHandler).onStatus(404) {
+                    if (query.skipIfViewDoesNotExist) {
+                        //TODO accept to return null
+                        throw SkippedQueryException()
+                    } else {
+                        throw IllegalArgumentException(it.responseBodyAsString())
+                    }
+                }.toJsonEvents(asyncParser).produceIn(this)
 
             // Response should be a Json object
             val firstEvent = jsonEvents.receive()
@@ -985,7 +992,7 @@ class ClientImpl(
 
             log.debug("Request {} : timing {} ms", request, System.currentTimeMillis() - start)
         }
-    }
+    }.catch { e -> if (e !is SkippedQueryException) { throw e } }
 
     @FlowPreview
     override fun <T : CouchDbDocument> subscribeForChanges(
@@ -1407,7 +1414,7 @@ class ClientImpl(
 private fun Request.retrieveAndInjectRequestId(
     headerHandlers: Map<String, HeaderHandler>,
     timingHandler: ((Long) -> Mono<Unit>)?
-) = this.retrieve().let {
+): Response = this.retrieve().let {
     headerHandlers.entries.fold(it) { resp, (header, handler) ->
         resp.onHeader(header) { value -> mono { handler.handle(value) } }
     }.let{ resp -> timingHandler?.let { resp.withTiming(it) } ?: resp }

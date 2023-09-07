@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.SerializationFeature
 import io.icure.asyncjacksonhttpclient.net.append
 import io.icure.asyncjacksonhttpclient.net.param
 import org.taktik.couchdb.util.Exceptions
+import java.lang.IllegalStateException
 import java.net.URI
 
 /**
@@ -50,6 +51,7 @@ data class ViewQuery(
         val isInclusiveEnd: Boolean = true,
         val isUpdateSeq: Boolean = false,
         val ignoreNotFound: Boolean = false,
+        val skipIfViewDoesNotExist: Boolean = false,
         private val staleOk: String? = null
 ) {
     private var cachedQuery: URI? = null
@@ -150,6 +152,7 @@ data class ViewQuery(
     fun updateSeq(value: Boolean) = copy(isUpdateSeq = value)
 
     fun ignoreNotFound(value: Boolean) = copy(ignoreNotFound = value)
+    fun skipIfViewDoesNotExist(value: Boolean) = copy(skipIfViewDoesNotExist = value)
 
     fun hasMultipleKeys() = keys != null
     fun keysAsJson() = keys?.let { keys -> DEFAULT_MAPPER.writeValueAsString(DEFAULT_MAPPER.createObjectNode().apply { putArray("keys").apply { keys.forEach { addPOJO(it) } } }) } ?: "{\"keys\":[]}"
@@ -196,7 +199,7 @@ data class ViewQuery(
 
     private fun assertHasText(s: String?, fieldName: String) = check(!s.isNullOrEmpty()) { "$fieldName must have a value" }
     private fun hasValue(i: Int) = i != NOT_SET
-    override fun toString(): String = buildQuery().toString()
+    override fun toString(): String = try { buildQuery().toString() } catch (e:IllegalStateException) { "incomplete query" }
 
     companion object {
         private val DEFAULT_MAPPER = ObjectMapper().apply {

@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.BeforeEach
@@ -52,7 +53,6 @@ import org.taktik.couchdb.exception.CouchDbException
 import reactor.tools.agent.ReactorDebugAgent
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.lang.IllegalArgumentException
 import java.net.URI
 import java.net.URL
 import java.nio.ByteBuffer
@@ -97,6 +97,53 @@ class CouchDbClientTests {
             try {
                 testDAO.createOrUpdateDesignDocuments(true, false)
             } catch (e: Exception) {}
+        }
+    }
+
+    @Test
+    fun testSkipIfViewDoesNotExist() = runBlocking {
+        val query = ViewQuery()
+            .designDocId("_design/Code")
+            .viewName("missing")
+            .skipIfViewDoesNotExist(true)
+            .includeDocs(true)
+        println(query.toString())
+        val res = client.queryViewIncludeDocs<String, String, Code>(query).toList().size
+        assertEquals(0, res)
+    }
+
+    @Test
+    fun testSkipIfViewDoesNotExistFails() {
+        val query = ViewQuery()
+            .designDocId("_design/Code")
+            .viewName("missing")
+            .includeDocs(true)
+        println(query.toString())
+        assertThrows(java.lang.IllegalArgumentException::class.java) {
+            runBlocking {
+                client.queryViewIncludeDocs<String, String, Code>(
+                    query
+                ).toList()
+            }
+        }
+    }
+
+    @Test
+    fun testSkipIfViewDoesNotExistFailsForOtherReason() {
+        val query = ViewQuery()
+            .designDocId("_design/Code")
+            .viewName("all")
+            .skipIfViewDoesNotExist(true)
+            .startKey("Z")
+            .endKey("A")
+            .includeDocs(true)
+        println(query.toString())
+        assertThrows(java.lang.IllegalStateException::class.java) {
+            runBlocking {
+                client.queryViewIncludeDocs<String, String, Code>(
+                    query
+                ).toList()
+            }
         }
     }
 
