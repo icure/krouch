@@ -20,14 +20,17 @@ package org.taktik.couchdb.entity
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.github.pozo.KotlinBuilder
 import java.io.Serializable
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@KotlinBuilder
 data class DatabaseInfoWrapper(val info: DatabaseInfo?, val error: String?)
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@KotlinBuilder
 data class DatabaseInfo(
         @JsonProperty("db_name") val dbName: String,
         @JsonProperty("purge_seq") val purgeSeq: String?,
@@ -43,6 +46,7 @@ data class DatabaseInfo(
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@KotlinBuilder
 data class Sizes(
         val file: Long,
         val external: Long,
@@ -51,6 +55,7 @@ data class Sizes(
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@KotlinBuilder
 data class Qnwr(
         val q: Int?,
         val n: Int?,

@@ -381,7 +381,7 @@ class ClientImpl(
      * Credentials returned by this provider may change over time.
      */
     private val credentialsProvider: () -> Pair<String, String>,
-    private val objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule.Builder().build()) },
+    private val objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
     private val headerHandlers: Map<String, HeaderHandler> = mapOf(),
     private val timingHandler: ((Long) -> Mono<Unit>)? = null,
     private val strictMode: Boolean = false,
@@ -396,7 +396,7 @@ class ClientImpl(
         dbURI: java.net.URI,
         username: String,
         password: String,
-        objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule.Builder().build()) },
+        objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
         headerHandlers: Map<String, HeaderHandler> = mapOf(),
         timingHandler: ((Long) -> Mono<Unit>)? = null,
         strictMode: Boolean = false

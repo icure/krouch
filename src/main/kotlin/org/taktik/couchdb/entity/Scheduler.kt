@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.github.pozo.KotlinBuilder
 import org.taktik.couchdb.handlers.ReplicationStateDeserializer
 import org.taktik.couchdb.handlers.ZonedDateTimeDeserializer
 import java.time.ZonedDateTime
@@ -15,14 +16,16 @@ interface Scheduler {
     }
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
-        data class Docs(
+    @KotlinBuilder
+    data class Docs(
             @JsonProperty("total_rows") override val totalRows: Int,
             override val offset: Int,
             val docs: List<Doc>
     ) : ListResult {
         @JsonInclude(JsonInclude.Include.NON_NULL)
         @JsonIgnoreProperties(ignoreUnknown = true)
-                data class Doc (
+        @KotlinBuilder
+        data class Doc (
                 val database : String? = null,
                 @JsonProperty("doc_id") val docId : String? = null,
                 val id : String? = null,
@@ -45,7 +48,8 @@ interface Scheduler {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
-        data class Info (
+    @KotlinBuilder
+    data class Info (
             @JsonProperty("revisions_checked") val revisionsChecked : Int? = null,
             @JsonProperty("missing_revisions_found") val missingRevisionsFound : Int? = null,
             @JsonProperty("docs_read") val docsRead : Int? = null,
@@ -109,14 +113,16 @@ interface Scheduler {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
-        data class Jobs(
+    @KotlinBuilder
+    data class Jobs(
             @JsonProperty("total_rows") override val totalRows: Int,
             override val offset: Int,
             val jobs: List<Job>
     ) : ListResult {
         @JsonInclude(JsonInclude.Include.NON_NULL)
         @JsonIgnoreProperties(ignoreUnknown = true)
-                data class Job(
+        @KotlinBuilder
+        data class Job(
                 val database: String? = null,
                 @JsonProperty("doc_id") val docId: String? = null,
                 val id: String? = null,
@@ -133,7 +139,8 @@ interface Scheduler {
         ) {
             @JsonInclude(JsonInclude.Include.NON_NULL)
             @JsonIgnoreProperties(ignoreUnknown = true)
-                        data class History(
+            @KotlinBuilder
+            data class History(
                     @JsonDeserialize(using = ZonedDateTimeDeserializer::class) val timestamp: ZonedDateTime? = null,
                     val type: String? = null,
                     val reason: String? = null
