@@ -74,8 +74,8 @@ tasks.withType<KotlinCompile> {
 dependencies {
     implementation(group = "io.icure", name = "async-jackson-http-client", version = "0.1.19-a58db0150a")
 
-    implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = "2.12.6")
-    implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = "2.12.6")
+    implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = "2.13.5")
+    implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = "2.13.5")
 
     implementation(group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version = "1.4.32")
     implementation(group = "org.jetbrains.kotlin", name = "kotlin-reflect", version = "1.4.32")
