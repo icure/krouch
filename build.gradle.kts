@@ -46,8 +46,8 @@ group = "org.taktik.couchdb"
 version = gitVersion ?: "0.0.1-SNAPSHOT"
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 }
 
 repositories {
@@ -67,12 +67,12 @@ tasks.withType<Test> {
 tasks.withType<KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict")
-         jvmTarget = "17"
+         jvmTarget = "11"
     }
 }
 
 dependencies {
-    implementation(group = "io.icure", name = "async-jackson-http-client", version = "0.1.19-a58db0150a")
+    implementation(group = "io.icure", name = "async-jackson-http-client", version = "0.1.20-9412eb88cf")
 
     implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = "2.13.5")
     implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = "2.13.5")
@@ -86,7 +86,7 @@ dependencies {
     implementation(group = "org.slf4j", name = "slf4j-api", version = "1.7.32")
 
     implementation(group = "com.google.guava", name = "guava", version = "30.1.1-jre")
-    implementation(group = "org.apache.httpcomponents", name = "httpclient", version = "4.5.14")
+    implementation(group = "org.apache.httpcomponents", name = "httpclient", version = "4.5.15")
 
     implementation(group = "io.projectreactor", name = "reactor-core", version = "3.4.10")
     implementation(group = "io.projectreactor.netty", name = "reactor-netty", version = "1.0.30")
