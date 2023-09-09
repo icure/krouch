@@ -84,9 +84,9 @@ dependencies {
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.3.4")
 
     implementation(group = "org.slf4j", name = "slf4j-api", version = "1.7.32")
+    implementation(group = "commons-codec", name = "commons-codec", version = "1.16.0")
 
     implementation(group = "com.google.guava", name = "guava", version = "30.1.1-jre")
-    implementation(group = "org.apache.httpcomponents", name = "httpclient", version = "4.5.15")
 
     implementation(group = "io.projectreactor", name = "reactor-core", version = "3.4.10")
     implementation(group = "io.projectreactor.netty", name = "reactor-netty", version = "1.0.30")

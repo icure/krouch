@@ -66,16 +66,12 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.reactor.mono
-import org.apache.http.HttpStatus.SC_CONFLICT
-import org.apache.http.HttpStatus.SC_NOT_FOUND
-import org.apache.http.HttpStatus.SC_UNAUTHORIZED
 import org.slf4j.LoggerFactory
 import org.taktik.couchdb.entity.ActiveTask
 import org.taktik.couchdb.entity.AttachmentResult
@@ -1379,7 +1375,7 @@ class ClientImpl(
         .toFlow()
 
     private fun Response.registerStatusMappers() =
-            onStatus(SC_UNAUTHORIZED) { response ->
+            onStatus(403) { response ->
                 throw CouchDbException(
                         "Unauthorized Access",
                         response.statusCode,
@@ -1388,7 +1384,7 @@ class ClientImpl(
                         couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
                 )
             }
-            .onStatus(SC_NOT_FOUND) { response ->
+            .onStatus(404) { response ->
                 throw CouchDbException(
                         "Document not found",
                         response.statusCode,
@@ -1397,7 +1393,7 @@ class ClientImpl(
                         couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
                 )
             }
-            .onStatus(SC_CONFLICT) { response ->
+            .onStatus(409) { response ->
                 throw CouchDbConflictException(
                         "Document update Conflict",
                         response.statusCode,
