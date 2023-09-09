@@ -22,7 +22,7 @@ val repoPassword: String by project
 val mavenReleasesRepository: String by project
 
 plugins {
-    kotlin("jvm") version "1.4.32"
+    kotlin("jvm") version "1.8.10"
 }
 
 buildscript {
@@ -31,8 +31,8 @@ buildscript {
         maven { url = uri("https://maven.taktik.be/content/groups/public") }
     }
     dependencies {
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.4.32")
-        classpath("org.jetbrains.kotlin:kotlin-allopen:1.4.32")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.10")
+        classpath("org.jetbrains.kotlin:kotlin-allopen:1.8.10")
         classpath("com.taktik.gradle:gradle-plugin-maven-repository:1.0.2")
         classpath("com.taktik.gradle:gradle-plugin-git-version:2.0.4")
     }
@@ -46,8 +46,8 @@ group = "org.taktik.couchdb"
 version = gitVersion ?: "0.0.1-SNAPSHOT"
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 repositories {
@@ -67,7 +67,7 @@ tasks.withType<Test> {
 tasks.withType<KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict")
-         jvmTarget = "11"
+         jvmTarget = "17"
     }
 }
 
@@ -77,10 +77,10 @@ dependencies {
     implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = "2.13.5")
     implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = "2.13.5")
 
-    implementation(group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version = "1.4.32")
-    implementation(group = "org.jetbrains.kotlin", name = "kotlin-reflect", version = "1.4.32")
-    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = "1.4.3")
-    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = "1.4.3")
+    implementation(group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version = "1.8.10")
+    implementation(group = "org.jetbrains.kotlin", name = "kotlin-reflect", version = "1.8.10")
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = "1.6.4")
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = "1.6.4")
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.3.4")
 
     implementation(group = "org.slf4j", name = "slf4j-api", version = "1.7.32")

@@ -18,7 +18,7 @@ fun <T> Flow<T>.bufferedChunks(min: Int, max: Int): Flow<List<T>> = channelFlow 
             send(buffer.toList())
             buffer.clear()
         } else if (min <= buffer.size) {
-            val offered = offer(buffer.toList())
+            val offered = this.trySend(buffer.toList()).isSuccess
             if (offered) {
                 buffer.clear()
             }
