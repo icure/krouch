@@ -20,14 +20,10 @@ package org.taktik.couchdb
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.github.pozo.KotlinBuilder
-import org.taktik.couchdb.annotation.View
-import org.taktik.couchdb.annotation.Views
 import org.taktik.couchdb.entity.Attachment
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-@KotlinBuilder
 data class Code(
         @JsonProperty("_id") override val id: String,         // id = type|code|version  => this must be unique
         @JsonProperty("_rev") override val rev: String? = null,

@@ -21,7 +21,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.taktik.couchdb.handlers.JacksonComplexKeyDeserializer
 import org.taktik.couchdb.handlers.JacksonComplexKeySerializer
-import java.util.*
+import java.util.Objects
 
 /**
  * Class for creating complex keys for view queries.

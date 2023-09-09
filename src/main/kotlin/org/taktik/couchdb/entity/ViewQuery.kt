@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.SerializationFeature
 import io.icure.asyncjacksonhttpclient.net.append
 import io.icure.asyncjacksonhttpclient.net.param
 import org.taktik.couchdb.util.Exceptions
-import java.lang.IllegalStateException
 import java.net.URI
 
 /**
