@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 /*
  *    Copyright 2020 Taktik SA
  *
@@ -15,14 +17,14 @@
  *
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 val repoUsername: String by project
 val repoPassword: String by project
 val mavenReleasesRepository: String by project
 
 plugins {
     kotlin("jvm") version "1.8.10"
+    id("com.taktik.gradle.maven-repository") version "1.0.7"
+    id("com.taktik.gradle.git-version") version "2.0.8-gb47b2d0e35"
 }
 
 buildscript {
@@ -33,13 +35,10 @@ buildscript {
     dependencies {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.10")
         classpath("org.jetbrains.kotlin:kotlin-allopen:1.8.10")
-        classpath("com.taktik.gradle:gradle-plugin-maven-repository:1.0.2")
-        classpath("com.taktik.gradle:gradle-plugin-git-version:2.0.4")
+        classpath("com.taktik.gradle:gradle-plugin-maven-repository:1.0.7")
+        classpath("com.taktik.gradle:gradle-plugin-git-version:2.0.8-gb47b2d0e35")
     }
 }
-
-apply(plugin = "git-version")
-apply(plugin = "maven-repository")
 
 val gitVersion: String? by project
 group = "org.taktik.couchdb"
@@ -48,13 +47,6 @@ version = gitVersion ?: "0.0.1-SNAPSHOT"
 java {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
-}
-
-repositories {
-    mavenCentral()
-    maven {
-        url = uri("https://maven.taktik.be/content/groups/public")
-    }
 }
 
 apply(plugin = "kotlin")
