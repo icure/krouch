@@ -45,8 +45,8 @@ group = "org.taktik.couchdb"
 version = gitVersion ?: "0.0.1-SNAPSHOT"
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 apply(plugin = "kotlin")
@@ -59,7 +59,7 @@ tasks.withType<Test> {
 tasks.withType<KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict")
-         jvmTarget = "11"
+         jvmTarget = "17"
     }
 }
 
