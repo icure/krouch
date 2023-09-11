@@ -21,6 +21,17 @@ val repoUsername: String by project
 val repoPassword: String by project
 val mavenReleasesRepository: String by project
 
+val kotlinVersion = "1.8.10"
+val kotlinCoroutinesVersion = "1.6.4"
+val asyncHttpVersion = "0.2.7-ga38bcbf6df"
+val jacksonVersion = "2.13.5"
+val reactorNettyVersion = "1.0.35"
+val slf4jVersion = "1.7.36"
+val commonsCodecVersion = "1.15"
+val guavaVersion = "30.1.1-jre"
+val reactorVersion = "3.4.32"
+val logbackVersion = "1.2.12"
+
 plugins {
     kotlin("jvm") version "1.8.10"
     id("com.taktik.gradle.maven-repository") version "1.0.7"
@@ -64,32 +75,32 @@ tasks.withType<KotlinCompile> {
 }
 
 dependencies {
-    implementation(group = "io.icure", name = "async-jackson-http-client", version = "0.1.20-9412eb88cf")
+    implementation(group = "io.icure", name = "async-jackson-http-client", version = asyncHttpVersion)
 
-    implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = "2.13.5")
-    implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = "2.13.5")
+    implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = jacksonVersion)
+    implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = jacksonVersion)
 
-    implementation(group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version = "1.8.10")
-    implementation(group = "org.jetbrains.kotlin", name = "kotlin-reflect", version = "1.8.10")
-    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = "1.6.4")
-    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = "1.6.4")
+    implementation(group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version = kotlinVersion)
+    implementation(group = "org.jetbrains.kotlin", name = "kotlin-reflect", version = kotlinVersion)
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = kotlinCoroutinesVersion)
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = kotlinCoroutinesVersion)
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.3.4")
 
-    implementation(group = "org.slf4j", name = "slf4j-api", version = "1.7.32")
-    implementation(group = "commons-codec", name = "commons-codec", version = "1.16.0")
+    implementation(group = "org.slf4j", name = "slf4j-api", version = slf4jVersion)
+    implementation(group = "commons-codec", name = "commons-codec", version = commonsCodecVersion)
 
-    implementation(group = "com.google.guava", name = "guava", version = "30.1.1-jre")
+    implementation(group = "com.google.guava", name = "guava", version = guavaVersion)
 
-    implementation(group = "io.projectreactor", name = "reactor-core", version = "3.4.10")
-    implementation(group = "io.projectreactor.netty", name = "reactor-netty", version = "1.0.30")
+    implementation(group = "io.projectreactor", name = "reactor-core", version = reactorVersion)
+    implementation(group = "io.projectreactor.netty", name = "reactor-netty", version = reactorNettyVersion)
 
     // Logging
-    testImplementation(group = "org.slf4j", name = "jul-to-slf4j", version = "1.7.32")
-    testImplementation(group = "org.slf4j", name = "jcl-over-slf4j", version = "1.7.32")
-    testImplementation(group = "org.slf4j", name = "log4j-over-slf4j", version = "1.7.32")
-    testImplementation(group = "ch.qos.logback", name = "logback-classic", version = "1.2.12")
-    testImplementation(group = "ch.qos.logback", name = "logback-access", version = "1.2.12")
+    testImplementation(group = "org.slf4j", name = "jul-to-slf4j", version = slf4jVersion)
+    testImplementation(group = "org.slf4j", name = "jcl-over-slf4j", version = slf4jVersion)
+    testImplementation(group = "org.slf4j", name = "log4j-over-slf4j", version = slf4jVersion)
+    testImplementation(group = "ch.qos.logback", name = "logback-classic", version = logbackVersion)
+    testImplementation(group = "ch.qos.logback", name = "logback-access", version = logbackVersion)
 
-    testImplementation(group = "io.projectreactor", name = "reactor-tools", version = "3.4.10")
+    testImplementation(group = "io.projectreactor", name = "reactor-tools", version = reactorVersion)
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.8.0")
 }
