@@ -28,7 +28,7 @@ import com.fasterxml.jackson.databind.util.TokenBuffer
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.google.common.reflect.TypeParameter
 import com.google.common.reflect.TypeToken
-import io.icure.asyncjacksonhttpclient.net.append
+import io.icure.asyncjacksonhttpclient.net.addSinglePathComponent
 import io.icure.asyncjacksonhttpclient.net.param
 import io.icure.asyncjacksonhttpclient.net.params
 import io.icure.asyncjacksonhttpclient.net.web.HttpMethod
@@ -91,6 +91,7 @@ import org.taktik.couchdb.exception.SkippedQueryException
 import org.taktik.couchdb.exception.ViewResultException
 import org.taktik.couchdb.mango.MangoQuery
 import org.taktik.couchdb.mango.MangoResultException
+import org.taktik.couchdb.util.appendDocumentOrDesignDocId
 import org.taktik.couchdb.util.bufferedChunks
 import reactor.core.publisher.Mono
 import java.lang.reflect.Type
@@ -421,14 +422,14 @@ class ClientImpl(
         @Suppress("BlockingMethodInNonBlockingContext")
         val doc = objectMapper.writerFor(Security::class.java).writeValueAsString(security)
 
-        val request = newRequest(dbURI.append("_security"), doc, HttpMethod.PUT)
+        val request = newRequest(dbURI.addSinglePathComponent("_security"), doc, HttpMethod.PUT)
         val result = request
             .getCouchDbResponse<Map<String, *>?>(true)
         return result?.get("ok") == true
     }
 
     override suspend fun designDocumentsIds(): Set<String> {
-        val request = newRequest(dbURI.append("_design_docs"))
+        val request = newRequest(dbURI.addSinglePathComponent("_design_docs"))
         val result = request.getCouchDbResponse<DesignDocumentResult?>(true)
         return result?.rows?.mapNotNull { it.key }?.toSet() ?: emptySet()
     }
@@ -449,14 +450,14 @@ class ClientImpl(
     @Deprecated("Use overload with TypeReference instead to avoid loss of Generic information in lists")
     override suspend fun <T : CouchDbDocument> get(id: String, clazz: Class<T>, vararg options: Option): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.append(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
 
         return request.getCouchDbResponse(clazz, nullIf404 = true)
     }
 
     override suspend fun <T : CouchDbDocument> get(id: String, type: TypeReference<T>, vararg options: Option): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.append(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
 
         return request.getCouchDbResponse(type, nullIf404 = true)
     }
@@ -468,7 +469,7 @@ class ClientImpl(
         vararg options: Option
     ): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.append(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
 
         return request.getCouchDbResponse(type, nullIf404 = true)
     }
@@ -516,7 +517,7 @@ class ClientImpl(
         require(id.isNotBlank()) { "Id cannot be blank" }
         require(rev.isNotBlank()) { "Rev cannot be blank" }
         return newRequest(
-            dbURI.append(id)
+            dbURI.appendDocumentOrDesignDocId(id)
                 .params((listOf("rev" to listOf(rev)) + options.map { Pair(it.paramName(), listOf("true")) }).toMap())
         )
     }
@@ -623,7 +624,7 @@ class ClientImpl(
         require(id.isNotBlank()) { "Id cannot be blank" }
         require(attachmentId.isNotBlank()) { "attachmentId cannot be blank" }
         val request =
-            newRequest(dbURI.append(id).append(attachmentId).let { u -> rev?.let { u.param("rev", it) } ?: u })
+            newRequest(dbURI.addSinglePathComponent(id).addSinglePathComponent(attachmentId).let { u -> rev?.let { u.param("rev", it) } ?: u })
 
         return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toBytesFlow()
     }
@@ -633,7 +634,7 @@ class ClientImpl(
         require(attachmentId.isNotBlank()) { "attachmentId cannot be blank" }
         require(rev.isNotBlank()) { "rev cannot be blank" }
 
-        val uri = dbURI.append(id).append(attachmentId)
+        val uri = dbURI.addSinglePathComponent(id).addSinglePathComponent(attachmentId)
         val request = newRequest(uri.param("rev", rev), HttpMethod.DELETE)
 
         return request.getCouchDbResponse<AttachmentResult>()!!.rev
@@ -651,7 +652,7 @@ class ClientImpl(
         require(attachmentId.isNotBlank()) { "attachmentId cannot be blank" }
         require(rev.isNotBlank()) { "rev cannot be blank" }
 
-        val uri = dbURI.append(id).append(attachmentId)
+        val uri = dbURI.addSinglePathComponent(id).addSinglePathComponent(attachmentId)
         val request =
             newRequest(uri.param("rev", rev), HttpMethod.PUT, requestId = requestId).header("Content-type", contentType)
                 .body(data)
@@ -704,7 +705,7 @@ class ClientImpl(
                 log.warn("Try to update {} of class {} with null or blank revision", docId, clazz)
             }
         }
-        val updateURI = dbURI.append(docId)
+        val updateURI = dbURI.addSinglePathComponent(docId)
 
         @Suppress("BlockingMethodInNonBlockingContext")
         val serializedDoc = objectMapper.writerFor(clazz).writeValueAsString(entity)
@@ -722,7 +723,7 @@ class ClientImpl(
         val id = entity.id
         require(id.isNotBlank()) { "Id cannot be blank" }
         require(!entity.rev.isNullOrBlank()) { "Revision cannot be blank" }
-        val uri = dbURI.append(id).param("rev", entity.rev!!)
+        val uri = dbURI.addSinglePathComponent(id).param("rev", entity.rev!!)
 
         val request = newRequest(uri, HttpMethod.DELETE, requestId = requestId)
 
@@ -762,7 +763,7 @@ class ClientImpl(
         requestBody: Any,
         requestId: String?
     ) {
-        val uri = dbURI.append("_bulk_docs")
+        val uri = dbURI.addSinglePathComponent("_bulk_docs")
 
         @Suppress("BlockingMethodInNonBlockingContext")
         val request = newRequest(uri, objectMapper.writeValueAsString(requestBody), requestId = requestId)
@@ -1062,7 +1063,7 @@ class ClientImpl(
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
         ))
-            .append("_active_tasks")
+            .addSinglePathComponent("_active_tasks")
         val request = newRequest(uri)
         return getCouchDbResponse(request)!!
     }
@@ -1071,7 +1072,7 @@ class ClientImpl(
         val asyncParser = objectMapper.createNonBlockingByteArrayParser()
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
-        )).append("_dbs_info")
+        )).addSinglePathComponent("_dbs_info")
 
         coroutineScope {
             ids.bufferedChunks(20, 100).collect { dbIds ->
@@ -1092,7 +1093,7 @@ class ClientImpl(
         val asyncParser = objectMapper.createNonBlockingByteArrayParser()
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
-        )).append("_all_dbs")
+        )).addSinglePathComponent("_all_dbs")
 
         coroutineScope {
             val request = newRequest(uri)
@@ -1110,7 +1111,8 @@ class ClientImpl(
     override suspend fun schedulerDocs(): Scheduler.Docs {
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
-        )).append("_scheduler/docs")
+        )).addSinglePathComponent("_scheduler")
+            .addSinglePathComponent("docs")
 
         val request = newRequest(uri)
 
@@ -1120,7 +1122,8 @@ class ClientImpl(
     override suspend fun schedulerJobs(): Scheduler.Jobs {
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
-        )).append("_scheduler/jobs")
+        )).addSinglePathComponent("_scheduler")
+            .addSinglePathComponent("jobs")
 
         val request = newRequest(uri)
 
@@ -1137,7 +1140,7 @@ class ClientImpl(
 
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
-        )).append("_replicator")
+        )).addSinglePathComponent("_replicator")
 
         @Suppress("BlockingMethodInNonBlockingContext")
         val serializedCmd = objectMapper.writeValueAsString(command)
@@ -1153,8 +1156,8 @@ class ClientImpl(
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
         ))
-            .append("_replicator/")
-            .append("_purge")
+            .addSinglePathComponent("_replicator/")
+            .addSinglePathComponent("_purge")
 
         return getReplicatorRevisions(docId)?.run {
             val revisionList = revsInfo?.map { it["rev"]!! }
@@ -1191,8 +1194,8 @@ class ClientImpl(
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
         ))
-            .append("_replicator/")
-            .append(docId)
+            .addSinglePathComponent("_replicator/")
+            .addSinglePathComponent(docId)
             .param("revs_info", "true")
 
         val request = newRequest(uri)
@@ -1204,7 +1207,7 @@ class ClientImpl(
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
         ))
-            .append("_replicator")
+            .addSinglePathComponent("_replicator")
 
         val request = newRequest(uri)
 
@@ -1248,7 +1251,7 @@ class ClientImpl(
         val asyncParser = objectMapper.createNonBlockingByteArrayParser()
         // Construct request
         val changesRequest = newRequest(
-            dbURI.append("_changes").param("feed", "continuous")
+            dbURI.addSinglePathComponent("_changes").param("feed", "continuous")
                 .param("heartbeat", "10000")
                 .param("include_docs", "true")
                 .param("since", since)
