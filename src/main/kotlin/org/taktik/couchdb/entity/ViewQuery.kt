@@ -20,7 +20,7 @@ package org.taktik.couchdb.entity
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
-import io.icure.asyncjacksonhttpclient.net.append
+import io.icure.asyncjacksonhttpclient.net.addSinglePathComponent
 import io.icure.asyncjacksonhttpclient.net.param
 import org.taktik.couchdb.util.Exceptions
 import java.net.URI
@@ -187,11 +187,11 @@ data class ViewQuery(
         assertHasText(viewName, "viewName")
         val uri = URI(dbPath!!)
         return when {
-            listName != null -> uri.append(designDocId).append("_list").append(listName).append(viewName)
-            viewName == ALL_DOCS_VIEW_NAME -> uri.append(ALL_DOCS_VIEW_NAME)
+            listName != null -> (designDocId?.split("/")?.fold(uri) { u, it -> u.addSinglePathComponent(it) } ?: uri).addSinglePathComponent("_list").addSinglePathComponent(listName).addSinglePathComponent(viewName)
+            viewName == ALL_DOCS_VIEW_NAME -> uri.addSinglePathComponent(ALL_DOCS_VIEW_NAME)
             else -> {
                 assertHasText(designDocId, "designDocId")
-                uri.append(designDocId).append("_view").append(viewName)
+                (designDocId?.split("/")?.fold(uri) { u, it -> u.addSinglePathComponent(it) } ?: uri).addSinglePathComponent("_view").addSinglePathComponent(viewName)
             }
         }
     }
