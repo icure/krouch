@@ -91,6 +91,7 @@ import org.taktik.couchdb.exception.SkippedQueryException
 import org.taktik.couchdb.exception.ViewResultException
 import org.taktik.couchdb.mango.MangoQuery
 import org.taktik.couchdb.mango.MangoResultException
+import org.taktik.couchdb.util.appendDocumentOrDesignDocId
 import org.taktik.couchdb.util.bufferedChunks
 import reactor.core.publisher.Mono
 import java.lang.reflect.Type
@@ -449,14 +450,14 @@ class ClientImpl(
     @Deprecated("Use overload with TypeReference instead to avoid loss of Generic information in lists")
     override suspend fun <T : CouchDbDocument> get(id: String, clazz: Class<T>, vararg options: Option): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.addSinglePathComponent(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
 
         return request.getCouchDbResponse(clazz, nullIf404 = true)
     }
 
     override suspend fun <T : CouchDbDocument> get(id: String, type: TypeReference<T>, vararg options: Option): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.addSinglePathComponent(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
 
         return request.getCouchDbResponse(type, nullIf404 = true)
     }
@@ -468,7 +469,7 @@ class ClientImpl(
         vararg options: Option
     ): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.addSinglePathComponent(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
 
         return request.getCouchDbResponse(type, nullIf404 = true)
     }
@@ -516,7 +517,7 @@ class ClientImpl(
         require(id.isNotBlank()) { "Id cannot be blank" }
         require(rev.isNotBlank()) { "Rev cannot be blank" }
         return newRequest(
-            dbURI.addSinglePathComponent(id)
+            dbURI.appendDocumentOrDesignDocId(id)
                 .params((listOf("rev" to listOf(rev)) + options.map { Pair(it.paramName(), listOf("true")) }).toMap())
         )
     }
@@ -1110,7 +1111,8 @@ class ClientImpl(
     override suspend fun schedulerDocs(): Scheduler.Docs {
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
-        )).addSinglePathComponent("_scheduler/docs")
+        )).addSinglePathComponent("_scheduler")
+            .addSinglePathComponent("docs")
 
         val request = newRequest(uri)
 
@@ -1120,7 +1122,8 @@ class ClientImpl(
     override suspend fun schedulerJobs(): Scheduler.Jobs {
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
-        )).addSinglePathComponent("_scheduler/jobs")
+        )).addSinglePathComponent("_scheduler")
+            .addSinglePathComponent("jobs")
 
         val request = newRequest(uri)
 
