@@ -78,6 +78,7 @@ import org.taktik.couchdb.entity.AttachmentResult
 import org.taktik.couchdb.entity.Change
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
 import org.taktik.couchdb.entity.DesignDocumentResult
+import org.taktik.couchdb.entity.IdAndRev
 import org.taktik.couchdb.entity.Option
 import org.taktik.couchdb.entity.ReplicateCommand
 import org.taktik.couchdb.entity.ReplicatorDocument
@@ -314,6 +315,7 @@ interface Client {
 
     suspend fun <T : CouchDbDocument> delete(entity: T, requestId: String? = null): DocIdentifier
     fun <T : CouchDbDocument> bulkDelete(entities: Collection<T>, requestId: String? = null): Flow<BulkUpdateResult>
+    fun bulkDelete(entities: Collection<IdAndRev>, requestId: String? = null): Flow<BulkUpdateResult>
 
     // Query
     fun <K, V, T> queryView(
@@ -751,11 +753,28 @@ class ClientImpl(
     @FlowPreview
     @ExperimentalCoroutinesApi
     override fun <T : CouchDbDocument> bulkDelete(entities: Collection<T>, requestId: String?): Flow<BulkUpdateResult> =
-        flow {
-            coroutineScope {
-                emitUpdateResults(this, BulkDeleteRequest(entities.map { DeleteRequest(it.id, it.rev) }), requestId)
-            }
+        bulkDelete(
+            entities.map {
+                IdAndRev(
+                    it.id,
+                    requireNotNull(it.rev) {
+                        "Rev should not be null for entities to delete"
+                    }
+                )
+             },
+            requestId
+        )
+
+    @FlowPreview
+    @ExperimentalCoroutinesApi
+    override fun bulkDelete(
+        entities: Collection<IdAndRev>,
+        requestId: String?
+    ): Flow<BulkUpdateResult> = flow {
+        coroutineScope {
+            emitUpdateResults(this, BulkDeleteRequest(entities.map { DeleteRequest(it.id, it.rev) }), requestId)
         }
+    }
 
     @FlowPreview
     private suspend fun FlowCollector<BulkUpdateResult>.emitUpdateResults(
