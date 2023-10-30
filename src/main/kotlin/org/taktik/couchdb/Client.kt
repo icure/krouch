@@ -755,14 +755,7 @@ class ClientImpl(
     @ExperimentalCoroutinesApi
     override fun <T : CouchDbDocument> bulkDelete(entities: Collection<T>, requestId: String?): Flow<BulkUpdateResult> =
         bulkDeleteByIdAndRev(
-            entities.map {
-                IdAndRev(
-                    it.id,
-                    requireNotNull(it.rev) {
-                        "Rev should not be null for entities to delete"
-                    }
-                )
-             },
+            entities.map { IdAndRev(it.id, it.rev) },
             requestId
         )
 
