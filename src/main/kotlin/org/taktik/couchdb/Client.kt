@@ -315,7 +315,8 @@ interface Client {
 
     suspend fun <T : CouchDbDocument> delete(entity: T, requestId: String? = null): DocIdentifier
     fun <T : CouchDbDocument> bulkDelete(entities: Collection<T>, requestId: String? = null): Flow<BulkUpdateResult>
-    fun bulkDelete(entities: Collection<IdAndRev>, requestId: String? = null): Flow<BulkUpdateResult>
+
+    fun bulkDeleteByIdAndRev(entities: Collection<IdAndRev>, requestId: String? = null): Flow<BulkUpdateResult>
 
     // Query
     fun <K, V, T> queryView(
@@ -753,7 +754,7 @@ class ClientImpl(
     @FlowPreview
     @ExperimentalCoroutinesApi
     override fun <T : CouchDbDocument> bulkDelete(entities: Collection<T>, requestId: String?): Flow<BulkUpdateResult> =
-        bulkDelete(
+        bulkDeleteByIdAndRev(
             entities.map {
                 IdAndRev(
                     it.id,
@@ -767,7 +768,7 @@ class ClientImpl(
 
     @FlowPreview
     @ExperimentalCoroutinesApi
-    override fun bulkDelete(
+    override fun bulkDeleteByIdAndRev(
         entities: Collection<IdAndRev>,
         requestId: String?
     ): Flow<BulkUpdateResult> = flow {
