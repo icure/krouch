@@ -48,8 +48,6 @@ class ComplexKey(components: Array<Any?> = arrayOf()) {
         private val EMPTY_OBJECT = Any()
         private val EMPTY_ARRAY = arrayOf<Any>()
 
-
-
         fun of(vararg components: Any?): ComplexKey {
             return ComplexKey(arrayOf(*components))
         }
