@@ -158,21 +158,21 @@ data class ViewQuery(
     fun buildQuery(): URI = cachedQuery ?: buildQueryURI().also { cachedQuery = it }
 
     fun buildQueryURI() = buildViewPath()
-                .let { q -> key?.let { q.param("key", jsonEncode(it)) } ?: q }
-                .let { q -> startKey?.let { q.param("startkey", jsonEncode(it)) } ?: q }
-                .let { q -> endKey?.let { q.param("endkey", jsonEncode(it)) } ?: q }
-                .let { q -> startDocId?.let { q.param("startkey_docid", it) } ?: q }
-                .let { q -> endDocId?.let { q.param("endkey_docid", it) } ?: q }
-                .let { q -> if (hasValue(limit)) q.param("limit", limit.toString()) else q }
-                .let { q -> staleOk?.let { q.param("stale", it) } ?: q }
-                .let { q -> if (isDescending) q.param("descending", "true") else q }
-                .let { q -> if (!isInclusiveEnd) q.param("inclusive_end", "false") else q }
-                .let { q -> if (!isReduce) q.param("reduce", "false") else q }
-                .let { q -> if (hasValue(skip)) q.param("skip", skip.toString()) else q }
-                .let { q -> if (isIncludeDocs) q.param("include_docs", "true") else q }
-                .let { q -> if (isGroup) q.param("group", "true") else q }
-                .let { q -> if (hasValue(groupLevel)) q.param("group_level", groupLevel.toString()) else q }
-                .let { q -> if (isUpdateSeq) q.param("update_seq", "true") else q }
+        .let { q -> key?.let { q.param("key", jsonEncode(it)) } ?: q }
+        .let { q -> startKey?.let { q.param("startkey", jsonEncode(it)) } ?: q }
+        .let { q -> endKey?.let { q.param("endkey", jsonEncode(it)) } ?: q }
+        .let { q -> startDocId?.let { q.param("startkey_docid", it) } ?: q }
+        .let { q -> endDocId?.let { q.param("endkey_docid", it) } ?: q }
+        .let { q -> if (hasValue(limit)) q.param("limit", limit.toString()) else q }
+        .let { q -> staleOk?.let { q.param("stale", it) } ?: q }
+        .let { q -> if (isDescending) q.param("descending", "true") else q }
+        .let { q -> if (!isInclusiveEnd) q.param("inclusive_end", "false") else q }
+        .let { q -> if (!isReduce) q.param("reduce", "false") else q }
+        .let { q -> if (hasValue(skip)) q.param("skip", skip.toString()) else q }
+        .let { q -> if (isIncludeDocs) q.param("include_docs", "true") else q }
+        .let { q -> if (isGroup) q.param("group", "true") else q }
+        .let { q -> if (hasValue(groupLevel)) q.param("group_level", groupLevel.toString()) else q }
+        .let { q -> if (isUpdateSeq) q.param("update_seq", "true") else q }
 
     private fun jsonEncode(key: Any?): String {
         return try {

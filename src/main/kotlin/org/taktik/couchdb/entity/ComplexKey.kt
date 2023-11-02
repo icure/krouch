@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.taktik.couchdb.handlers.JacksonComplexKeyDeserializer
 import org.taktik.couchdb.handlers.JacksonComplexKeySerializer
+import org.taktik.couchdb.handlers.JacksonNullKeySerializer
 import java.util.Objects
 
 /**
@@ -48,6 +49,9 @@ class ComplexKey(components: Array<Any?> = arrayOf()) {
         private val EMPTY_OBJECT = Any()
         private val EMPTY_ARRAY = arrayOf<Any>()
 
+        @JsonSerialize(using = JacksonNullKeySerializer::class)
+        object NullKey {}
+
         fun of(vararg components: Any?): ComplexKey {
             return ComplexKey(arrayOf(*components))
         }
@@ -69,5 +73,11 @@ class ComplexKey(components: Array<Any?> = arrayOf()) {
         fun emptyArray(): Array<Any> {
             return EMPTY_ARRAY
         }
+
+        /**
+         * Adds a null value to the query, as null parameters are usually filtered out when building the query.
+         * @return an object that serializes to null.
+         */
+        fun nullKey() = NullKey
     }
 }

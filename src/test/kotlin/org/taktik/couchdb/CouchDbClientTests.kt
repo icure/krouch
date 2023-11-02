@@ -383,7 +383,7 @@ class CouchDbClientTests {
 
     @Test
     fun testClientUpdateOutdated() {
-        Assertions.assertThrows(CouchDbConflictException::class.java) {
+        assertThrows(CouchDbConflictException::class.java) {
             runBlocking {
                 val randomCode = UUID.randomUUID().toString()
                 val toCreate = Code.from("test", randomCode, "test")
@@ -457,6 +457,17 @@ class CouchDbClientTests {
         val codes = testDAO.findCodeByTypeAndVersion("test", "test").map { it.doc }.toList()
         val fetched = client.get<Code>(codes.map { it.id }).toList()
         assertEquals(codes.map { it.code }, fetched.map { it.code })
+    }
+
+    @Test
+    fun testGetAllWithView() = runBlocking {
+        val viewQuery = ViewQuery()
+            .designDocId("_design/${Code::class.java.simpleName}")
+            .viewName("all")
+            .includeDocs(true)
+            .reduce(false)
+            .startKey(ComplexKey.nullKey())
+        assert(client.queryViewIncludeDocs<Any?, String, Code>(viewQuery).count() > 0)
     }
 
     @Test
