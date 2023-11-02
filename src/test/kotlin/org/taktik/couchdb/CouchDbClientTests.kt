@@ -409,6 +409,22 @@ class CouchDbClientTests {
     }
 
     @Test
+    fun testGetAllWithView() = runBlocking {
+        val toCreate = Code.from("test", UUID.randomUUID().toString(), "test")
+        val created = client.create(toCreate)
+        val viewQuery = ViewQuery()
+            .designDocId("_design/${Code::class.java.simpleName}")
+            .viewName("all")
+            .includeDocs(true)
+            .reduce(false)
+            .startKey(NullKey)
+            .startDocId(created.id)
+        val retrieved = client.queryViewIncludeDocs<Any?, String, Code>(viewQuery).toList()
+        assert(retrieved.isNotEmpty())
+        assertEquals(retrieved.first().id, created.id)
+    }
+
+    @Test
     fun testClientDelete() = runBlocking {
         val randomCode = UUID.randomUUID().toString()
         val toCreate = Code.from("test", randomCode, "test")
@@ -457,17 +473,6 @@ class CouchDbClientTests {
         val codes = testDAO.findCodeByTypeAndVersion("test", "test").map { it.doc }.toList()
         val fetched = client.get<Code>(codes.map { it.id }).toList()
         assertEquals(codes.map { it.code }, fetched.map { it.code })
-    }
-
-    @Test
-    fun testGetAllWithView() = runBlocking {
-        val viewQuery = ViewQuery()
-            .designDocId("_design/${Code::class.java.simpleName}")
-            .viewName("all")
-            .includeDocs(true)
-            .reduce(false)
-            .startKey(ComplexKey.nullKey())
-        assert(client.queryViewIncludeDocs<Any?, String, Code>(viewQuery).count() > 0)
     }
 
     @Test
