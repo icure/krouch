@@ -29,11 +29,11 @@ import java.io.FileNotFoundException
  *
  * @author Antoine Duchâteau, based on of Ektorp by henrik lundgren
  */
-class SimpleViewGenerator {
+class SimpleViewGenerator : ViewGenerator<Any> {
 
     private fun View.fullName(baseId: String) = this.secondaryPartition.takeIf { it.isNotBlank() }?.let { "${baseId}-${it}/${this.name}" } ?: "${baseId}/${this.name}"
 
-    fun generateViews(
+    override fun generateViews(
             repository: Any,
             baseId: String,
     ): Map<String, org.taktik.couchdb.entity.View> {
