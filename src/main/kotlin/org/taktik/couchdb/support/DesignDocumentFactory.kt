@@ -36,11 +36,17 @@ import java.io.FileNotFoundException
  *
  * @author Antoine Duchâteau, based on of Ektorp by henrik lundgren
  */
-abstract class AbstractDesignDocumentFactory<T>(
+class DesignDocumentFactory<T : Any>(
     private val viewGenerator: ViewGenerator<T>
 ) {
 
-    abstract fun getMetadataClass(metaDataSource: T): Class<*>
+    companion object {
+        fun getExternalDesignDocumentFactory() =
+            DesignDocumentFactory(ExternalViewGenerator())
+
+        fun getStdDesignDocumentFactory() =
+            DesignDocumentFactory(SimpleViewGenerator())
+    }
 
     /*
      * (non-Javadoc)
@@ -49,7 +55,7 @@ abstract class AbstractDesignDocumentFactory<T>(
      */
     fun generateFrom(baseId: String, metaDataSource: T, useVersioning: Boolean = true): Set<DesignDocument> {
         val (prefix, suffix) = baseId.split("/").let { it.subList(0, it.size - 1).joinToString("/") to it.last() }
-        val metaDataClass: Class<*> = getMetadataClass(metaDataSource)
+        val metaDataClass = metaDataSource.javaClass
         val views = viewGenerator.generateViews(metaDataSource, suffix)
 
         return views.toList().groupBy { (k,_) -> k.split("/")[0] }.map { (name, views) ->
