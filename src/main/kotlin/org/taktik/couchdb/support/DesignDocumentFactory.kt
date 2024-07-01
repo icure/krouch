@@ -36,17 +36,26 @@ import java.io.FileNotFoundException
  *
  * @author Antoine Duchâteau, based on of Ektorp by henrik lundgren
  */
-class StdDesignDocumentFactory {
-    var viewGenerator = SimpleViewGenerator()
+class DesignDocumentFactory<T : Any>(
+    private val viewGenerator: ViewGenerator<T>
+) {
+
+    companion object {
+        fun getExternalDesignDocumentFactory() =
+            DesignDocumentFactory(ExternalViewGenerator())
+
+        fun getStdDesignDocumentFactory() =
+            DesignDocumentFactory(SimpleViewGenerator())
+    }
 
     /*
      * (non-Javadoc)
      *
      * @see org.ektorp.support.DesignDocumentFactory#generateFrom(java.lang.Object)
      */
-    fun generateFrom(baseId: String, metaDataSource: Any, useVersioning: Boolean = true): Set<DesignDocument> {
+    fun generateFrom(baseId: String, metaDataSource: T, useVersioning: Boolean = true): Set<DesignDocument> {
         val (prefix, suffix) = baseId.split("/").let { it.subList(0, it.size - 1).joinToString("/") to it.last() }
-        val metaDataClass: Class<*> = metaDataSource.javaClass
+        val metaDataClass = metaDataSource.javaClass
         val views = viewGenerator.generateViews(metaDataSource, suffix)
 
         return views.toList().groupBy { (k,_) -> k.split("/")[0] }.map { (name, views) ->

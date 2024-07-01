@@ -1,10 +1,9 @@
 package org.taktik.couchdb
 
-import org.junit.jupiter.api.Test
 import org.taktik.couchdb.dao.UserDAO
-import org.taktik.couchdb.support.StdDesignDocumentFactory
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.RepeatedTest
+import org.taktik.couchdb.support.StdDesignDocumentFactory
 
 class VersionHashingTest {
 

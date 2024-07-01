@@ -24,8 +24,10 @@ import org.taktik.couchdb.entity.DesignDocument
 import org.taktik.couchdb.get
 import org.taktik.couchdb.support.StdDesignDocumentFactory
 
-abstract class GenericDAOImpl<T : CouchDbDocument>(protected val entityClass: Class<T>, protected val client: Client) :
-    GenericDAO<T> {
+abstract class GenericDAOImpl<T : CouchDbDocument>(
+    entityClass: Class<T>,
+    protected val client: Client
+) : GenericDAO<T> {
 
     val designDocumentId = "_design/${entityClass.simpleName}"
 
