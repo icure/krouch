@@ -34,7 +34,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -96,7 +95,7 @@ class CouchDbClientTests {
             }
             try {
                 testDAO.createOrUpdateDesignDocuments(true, false)
-            } catch (e: Exception) {}
+            } catch (_: Exception) {}
         }
     }
 
@@ -125,6 +124,95 @@ class CouchDbClientTests {
                     query
                 ).toList()
             }
+        }
+    }
+
+    @Test
+    fun testCanGetDesignDocInfo() {
+        runBlocking {
+            val currentDoc = requireNotNull(client.get<DesignDocument>("_design/Code")) { "Current DesignDoc is null" }
+            assertNotNull(currentDoc.rev)
+            val info = client.documentInfo(currentDoc.id)
+            assertEquals(currentDoc.id, info?.id)
+            assertEquals(currentDoc.rev, info?.rev)
+            assertNotNull(info?.size)
+        }
+    }
+
+    @Test
+    fun testCanGetDesignDocInfoForSpecificRev() {
+        runBlocking {
+            val currentDoc = requireNotNull(client.get<DesignDocument>("_design/Code")) { "Current DesignDoc is null" }
+            assertNotNull(currentDoc.rev)
+            val info = client.documentInfo(currentDoc.id, currentDoc.rev)
+            assertEquals(currentDoc.id, info?.id)
+            assertEquals(currentDoc.rev, info?.rev)
+            assertNotNull(info?.size)
+        }
+    }
+
+    @Test
+    fun testNullResultInfoIfDesignDocDoesNotExistWithSpecificRev() {
+        runBlocking {
+            val currentDoc = requireNotNull(client.get<DesignDocument>("_design/Code")) { "Current DesignDoc is null" }
+            val fakeRev = currentDoc.rev?.let {
+                val (num, hash) = it.split("-")
+                "${num.toInt() + 1}-${hash}"
+            }
+            assertNotNull(fakeRev)
+            val info = client.documentInfo(currentDoc.id, fakeRev)
+            assertNull(info)
+        }
+    }
+
+    @Test
+    fun testNullResultInfoIfDocDoesNotExist() {
+        runBlocking {
+            val info = client.documentInfo(UUID.randomUUID().toString())
+            assertNull(info)
+        }
+    }
+    @Test
+    fun testCanGetDocInfo() {
+        runBlocking {
+            val type = UUID.randomUUID().toString()
+            val code = checkNotNull(client.create(Code(id = "$type|doc-info|1", type = type, code = "doc-info", version = "1")))
+            val updatedCode = checkNotNull(client.update(code.copy(author = "me")))
+            assertNotNull(updatedCode.rev)
+            val info = client.documentInfo(updatedCode.id)
+            assertEquals(updatedCode.id, info?.id)
+            assertEquals(updatedCode.rev, info?.rev)
+            assertNotNull(info?.size)
+        }
+    }
+
+    @Test
+    fun testCanGetDocInfoForSpecificRev() {
+        runBlocking {
+            val type = UUID.randomUUID().toString()
+            val code = checkNotNull(client.create(Code(id = "$type|doc-info-rev|1", type = type, code = "doc-info-rev", version = "1")))
+            checkNotNull(client.update(code.copy(author = "me")))
+            assertNotNull(code.rev)
+            val info = client.documentInfo(code.id, code.rev)
+            assertEquals(code.id, info?.id)
+            assertEquals(code.rev, info?.rev)
+            assertNotNull(info?.size)
+        }
+    }
+
+    @Test
+    fun testNullResultInfoIfDocDoesNotExistWithSpecificRev() {
+        runBlocking {
+            val type = UUID.randomUUID().toString()
+            val code = checkNotNull(client.create(Code(id = "$type|doc-info-fake-rev|1", type = type, code = "doc-info-fake-rev", version = "1")))
+            assertNotNull(code.rev)
+            val fakeRev = code.rev?.let {
+                val (num, hash) = it.split("-")
+                "${num.toInt() + 1}-${hash}"
+            }
+            assertNotNull(fakeRev)
+            val info = client.documentInfo(code.id, fakeRev)
+            assertNull(info)
         }
     }
 
@@ -243,7 +331,7 @@ class CouchDbClientTests {
     fun testRequestGetResponseBytesFlow() = runBlocking {
         val bytesFlow = httpClient.uri("https://jsonplaceholder.typicode.com/posts").method(HttpMethod.GET).retrieve().toBytesFlow()
 
-        val bytes = bytesFlow.fold(ByteBuffer.allocate(1000000), { acc, buffer -> acc.put(buffer) })
+        val bytes = bytesFlow.fold(ByteBuffer.allocate(1000000)) { acc, buffer -> acc.put(buffer) }
         bytes.flip()
         val responseAsString = StandardCharsets.UTF_8.decode(bytes).toString()
         assertEquals(testResponseAsString, responseAsString)
