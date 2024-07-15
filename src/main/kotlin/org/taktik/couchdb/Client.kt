@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.fold
@@ -78,6 +79,7 @@ import org.taktik.couchdb.entity.AttachmentResult
 import org.taktik.couchdb.entity.Change
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
 import org.taktik.couchdb.entity.DesignDocumentResult
+import org.taktik.couchdb.entity.DocumentInfo
 import org.taktik.couchdb.entity.IdAndRev
 import org.taktik.couchdb.entity.Option
 import org.taktik.couchdb.entity.ReplicateCommand
@@ -92,6 +94,8 @@ import org.taktik.couchdb.exception.SkippedQueryException
 import org.taktik.couchdb.exception.ViewResultException
 import org.taktik.couchdb.mango.MangoQuery
 import org.taktik.couchdb.mango.MangoResultException
+import org.taktik.couchdb.util.CONTENT_LENGTH
+import org.taktik.couchdb.util.E_TAG
 import org.taktik.couchdb.util.appendDocumentOrDesignDocId
 import org.taktik.couchdb.util.bufferedChunks
 import reactor.core.publisher.Mono
@@ -255,6 +259,8 @@ interface Client {
     suspend fun destroyDatabase(): Boolean
 
     // CRUD methods
+    suspend fun documentInfo(id: String, rev: String? = null): DocumentInfo?
+
     suspend fun <T : CouchDbDocument> get(id: String, clazz: Class<T>, vararg options: Option): T?
     suspend fun <T : CouchDbDocument> get(id: String, type: TypeReference<T>, vararg options: Option): T?
     suspend fun <T : CouchDbDocument> get(
@@ -435,6 +441,34 @@ class ClientImpl(
         val request = newRequest(dbURI.addSinglePathComponent("_design_docs"))
         val result = request.getCouchDbResponse<DesignDocumentResult?>(true)
         return result?.rows?.mapNotNull { it.key }?.toSet() ?: emptySet()
+    }
+
+    override suspend fun documentInfo(id: String, rev: String?): DocumentInfo? = try {
+        val request = newRequest(
+            uri = dbURI.appendDocumentOrDesignDocId(id).let {
+                if(rev != null) it.param("rev", rev)
+                else it
+            },
+            method = HttpMethod.HEAD
+        )
+        var foundRev: String? = null
+        var size: Long? = null
+        request.retrieve().registerStatusMappers().onHeader(E_TAG) { value ->
+            mono {
+                foundRev = value.trim('"')
+            }
+        }.onHeader(CONTENT_LENGTH) { value ->
+            mono {
+                size = value.toLongOrNull()
+            }
+        }.toFlow().collect()
+        DocumentInfo(
+            id = id,
+            rev = checkNotNull(foundRev) { "Rev cannot be null if the response is successful" },
+            size = checkNotNull(size) { "Size cannot be null if the response is successful" }
+        )
+    } catch (ex: CouchDbException) {
+        if (ex.statusCode == 404) null else throw ex
     }
 
     override suspend fun exists(): Boolean {
