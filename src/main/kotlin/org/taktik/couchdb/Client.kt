@@ -25,7 +25,7 @@ import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.util.TokenBuffer
-import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import com.google.common.reflect.TypeParameter
 import com.google.common.reflect.TypeToken
 import io.icure.asyncjacksonhttpclient.net.addSinglePathComponent
@@ -79,6 +79,7 @@ import org.taktik.couchdb.entity.Change
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
 import org.taktik.couchdb.entity.DesignDocumentResult
 import org.taktik.couchdb.entity.IdAndRev
+import org.taktik.couchdb.entity.Membership
 import org.taktik.couchdb.entity.Option
 import org.taktik.couchdb.entity.ReplicateCommand
 import org.taktik.couchdb.entity.ReplicatorDocument
@@ -250,6 +251,11 @@ inline fun <reified T : CouchDbDocument> Client.subscribeForChanges(
     )
 
 interface Client {
+    // CouchDB options
+    suspend fun membership(): Membership
+    suspend fun getConfigOption(nodeName: String, section: String, key: String): String?
+    suspend fun setConfigOption(nodeName: String, section: String, key: String, newValue: String)
+
     // Check if db exists
     suspend fun exists(): Boolean
     suspend fun destroyDatabase(): Boolean
@@ -376,17 +382,19 @@ interface HeaderHandler {
 @ExperimentalCoroutinesApi
 class ClientImpl(
     private val httpClient: WebClient,
-    private val dbURI: java.net.URI,
+    private val couchDBUri: java.net.URI,
+    dbName: String,
     /**
      * Function to retrieve credentials as pair username-password.
      * Credentials returned by this provider may change over time.
      */
     private val credentialsProvider: () -> Pair<String, String>,
-    private val objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
+    private val objectMapper: ObjectMapper = ObjectMapper().also { it.registerKotlinModule() },
     private val headerHandlers: Map<String, HeaderHandler> = mapOf(),
     private val timingHandler: ((Long) -> Mono<Unit>)? = null,
     private val strictMode: Boolean = false,
 ) : Client {
+    private val dbURI = couchDBUri.addSinglePathComponent(dbName)
     private val log = LoggerFactory.getLogger(javaClass.name)
 
     /**
@@ -394,16 +402,18 @@ class ClientImpl(
      */
     constructor(
         httpClient: WebClient,
-        dbURI: java.net.URI,
+        couchDBUri: java.net.URI,
+        dbName: String,
         username: String,
         password: String,
-        objectMapper: ObjectMapper = ObjectMapper().also { it.registerModule(KotlinModule()) },
+        objectMapper: ObjectMapper = ObjectMapper().also { it.registerKotlinModule() },
         headerHandlers: Map<String, HeaderHandler> = mapOf(),
         timingHandler: ((Long) -> Mono<Unit>)? = null,
         strictMode: Boolean = false
     ) : this(
         httpClient,
-        dbURI,
+        couchDBUri,
+        dbName,
         { username to password },
         objectMapper,
         headerHandlers,
@@ -422,7 +432,6 @@ class ClientImpl(
     }
 
     override suspend fun security(security: Security): Boolean {
-        @Suppress("BlockingMethodInNonBlockingContext")
         val doc = objectMapper.writerFor(Security::class.java).writeValueAsString(security)
 
         val request = newRequest(dbURI.addSinglePathComponent("_security"), doc, HttpMethod.PUT)
@@ -442,6 +451,39 @@ class ClientImpl(
         val result = request
             .getCouchDbResponse<Map<String, *>?>(true)
         return result?.get("db_name") != null
+    }
+
+    override suspend fun membership(): Membership {
+        val request = newRequest(couchDBUri.addSinglePathComponent("_membership"))
+        return checkNotNull(request.getCouchDbResponse<Membership>(false)) {
+            "Cannot get Membership info from the db"
+        }
+    }
+
+    override suspend fun getConfigOption(nodeName: String, section: String, key: String): String? {
+        val uri = couchDBUri
+            .addSinglePathComponent("_node")
+            .addSinglePathComponent(nodeName)
+            .addSinglePathComponent("_config")
+            .addSinglePathComponent(section)
+            .addSinglePathComponent(key)
+        val request = newRequest(uri)
+        return request.getCouchDbResponse<String>(true)
+    }
+
+    override suspend fun setConfigOption(nodeName: String, section: String, key: String, newValue: String) {
+        val uri = couchDBUri
+            .addSinglePathComponent("_node")
+            .addSinglePathComponent(nodeName)
+            .addSinglePathComponent("_config")
+            .addSinglePathComponent(section)
+            .addSinglePathComponent(key)
+        val request = newRequest(
+            uri = uri,
+            body = objectMapper.writeValueAsString(newValue),
+            method = HttpMethod.PUT
+        )
+        request.getCouchDbResponse<String>(false)
     }
 
     override suspend fun destroyDatabase(): Boolean {
