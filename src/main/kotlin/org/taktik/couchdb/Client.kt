@@ -374,6 +374,7 @@ private const val UPDATE_SEQUENCE_NAME = "update_seq"
 private const val DOCS_NAME = "docs"
 private const val BOOKMARK_NAME = "bookmark"
 private const val ERROR_NAME = "error"
+private const val COUCHDB_LOCAL_NODE = "nonode@nohost"
 
 interface HeaderHandler {
     suspend fun handle(value: String)
