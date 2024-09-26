@@ -75,7 +75,8 @@ class CouchDbClientTests {
     private val httpClient = NettyWebClient()
     private val client = ClientImpl(
         httpClient,
-        URI("$databaseHost/$databaseName"),
+        URI(databaseHost),
+        databaseName,
         userName,
         password,
         strictMode = true
@@ -218,10 +219,34 @@ class CouchDbClientTests {
     }
 
     @Test
+    fun testMembership() = runBlocking {
+        val membership = client.membership()
+        assertEquals(1, membership.allNodes.size)
+        assertEquals("nonode@nohost", membership.allNodes.first())
+        assertEquals(1, membership.clusterNodes.size)
+        assertEquals("nonode@nohost", membership.clusterNodes.first())
+    }
+
+    @Test
+    fun testRetrieveNonExistentConfigOption() = runBlocking {
+        val value = client.getConfigOption("nonode@nohost", "unknown", "unknown")
+        assertNull(value)
+    }
+
+    @Test
+    fun testSetAndRetrieveConfigOption() = runBlocking {
+        val newValue = "2"
+        client.setConfigOption("nonode@nohost", "ken", "batch_channels", newValue)
+        val retrievedValue = client.getConfigOption("nonode@nohost", "ken", "batch_channels")
+        assertEquals(newValue, retrievedValue)
+    }
+
+    @Test
     fun testDestroyDatabase() = runBlocking {
         val client = ClientImpl(
             httpClient,
-            URI("$databaseHost/test_${UUID.randomUUID()}"),
+            URI(databaseHost),
+            UUID.randomUUID().toString(),
             userName,
             password)
         client.create(1,1)
@@ -232,10 +257,11 @@ class CouchDbClientTests {
     @Test
     fun testExists2() = runBlocking {
         val client = ClientImpl(
-                httpClient,
-                URI("$databaseHost/${UUID.randomUUID()}"),
-                userName,
-                password)
+            httpClient,
+            URI(databaseHost),
+            UUID.randomUUID().toString(),
+            userName,
+            password)
         assertFalse(client.exists())
     }
 
