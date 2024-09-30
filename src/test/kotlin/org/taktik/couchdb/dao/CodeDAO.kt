@@ -32,6 +32,7 @@ import org.taktik.couchdb.queryViewIncludeDocs
 
 @Views(
     View(name = "all", map = "function(doc) { if (doc.java_type == 'Code' && !doc.deleted) emit(null, doc._id )}"),
+    View(name = "all_obsolete", map = "function(doc) { if (doc.java_type == 'Code' && !doc.deleted) emit(null, doc._id )}", obsolete = true),
     View(name = "by_type", map = "classpath:js/code/by_type.js"),
     View(name = "by_type_aside", map = "classpath:js/code/by_type.js", secondaryPartition = "Aside"),
     )

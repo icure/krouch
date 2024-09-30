@@ -26,7 +26,6 @@ package org.taktik.couchdb.annotation
 annotation class View(
         /**
          * The name of the view
-         * @return
          */
         val name: String,
         /**
@@ -38,7 +37,6 @@ annotation class View(
          * the function by starting the string with *classpath:*.
          * The rest of the string then represents a relative path to
          * the function.
-         * @return
          */
         val map: String = "",
         /**
@@ -50,7 +48,6 @@ annotation class View(
          * the function by starting the string with *classpath:*.
          * The rest of the string then represents a relative path to
          * the function.
-         * @return
          */
         val reduce: String = "",
         /**
@@ -69,8 +66,6 @@ annotation class View(
          * // the reduce function is optional
          * "reduce": "function(keys, values) { ... }"
          * }
-         *
-         * @return
          */
         val file: String = "",
 
@@ -78,5 +73,11 @@ annotation class View(
          * It is sometimes necessary to store some views in a separate partition. This parameter allows you to set the name of that partition.
          *
          */
-        val secondaryPartition: String = ""
+        val secondaryPartition: String = "",
+
+        /**
+         * If true, it will not include this View in the DesignDoc. It may be useful when a View needs to be phased out
+         * but still used.
+         */
+        val obsolete: Boolean = false
 )

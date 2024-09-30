@@ -246,9 +246,10 @@ class CouchDbClientTests {
         val client = ClientImpl(
             httpClient,
             URI(databaseHost),
-            UUID.randomUUID().toString(),
+            "icure-${UUID.randomUUID()}",
             userName,
-            password)
+            password
+        )
         client.create(1,1)
         delay(1000L)
         assertTrue(client.destroyDatabase())
@@ -261,7 +262,8 @@ class CouchDbClientTests {
             URI(databaseHost),
             UUID.randomUUID().toString(),
             userName,
-            password)
+            password
+        )
         assertFalse(client.exists())
     }
 
@@ -662,6 +664,13 @@ class CouchDbClientTests {
         } catch (e: CouchDbException) {
             assertEquals(e.statusCode, 404)
         }
+    }
+
+    @Test
+    fun testObsoleteViewIsNotIncludedInDesignDoc() = runBlocking {
+        val dd = client.get<DesignDocument>("_design/${Code::class.java.simpleName}")
+        assertNotNull(dd)
+        assertNull(dd!!.views["all_obsolete"])
     }
 
     fun testAttachmentSize() = runBlocking {
