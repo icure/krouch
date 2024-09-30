@@ -70,16 +70,21 @@ class SimpleViewGenerator : ViewGenerator<Any> {
         input: View,
         repositoryClass: Class<*>,
         baseId: String,
-        ) {
-        if (input.file.isNotEmpty()) {
-            views[input.fullName(baseId)] = loadViewFromFilePath(input, repositoryClass)
-        } else if (shouldLoadFunctionFromClassPath(input.map)
-                || shouldLoadFunctionFromClassPath(input.reduce)) {
-            views[input.fullName(baseId)] = viewFromFilePath(input, repositoryClass)
-        } else {
-            views[input.fullName(baseId)] = if (input.reduce.isNotEmpty())
-                org.taktik.couchdb.entity.View(input.map, input.reduce)
-            else org.taktik.couchdb.entity.View(input.map)
+    ) {
+        when {
+            input.obsolete -> return
+            input.file.isNotEmpty() -> {
+                views[input.fullName(baseId)] = loadViewFromFilePath(input, repositoryClass)
+            }
+            shouldLoadFunctionFromClassPath(input.map) || shouldLoadFunctionFromClassPath(input.reduce) -> {
+                views[input.fullName(baseId)] = viewFromFilePath(input, repositoryClass)
+            }
+            input.reduce.isNotEmpty() -> {
+                views[input.fullName(baseId)] = org.taktik.couchdb.entity.View(input.map, input.reduce)
+            }
+            else -> {
+                views[input.fullName(baseId)] = org.taktik.couchdb.entity.View(input.map)
+            }
         }
     }
 
