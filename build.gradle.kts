@@ -31,7 +31,7 @@ val nettyVersion = "4.1.114.Final"
 val reactorNettyVersion = "1.1.23"
 val slf4jVersion = "2.0.16"
 val commonsCodecVersion = "1.16.1"
-val guavaVersion = "32.0.1-jre"
+val guavaVersion = "32.1.3-jre"
 val reactorVersion = "3.6.11"
 val logbackVersion = "1.5.11"
 
