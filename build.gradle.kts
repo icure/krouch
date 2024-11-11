@@ -23,16 +23,17 @@ val repoUsername: String by project
 val repoPassword: String by project
 val mavenReleasesRepository: String by project
 
-val kotlinVersion = "1.8.10"
-val kotlinCoroutinesVersion = "1.6.4"
-val asyncHttpVersion = "0.2.14-g05fa58f2eb"
-val jacksonVersion = "2.13.5"
-val reactorNettyVersion = "1.0.35"
-val slf4jVersion = "1.7.36"
-val commonsCodecVersion = "1.15"
-val guavaVersion = "31.1-jre"
-val reactorVersion = "3.4.32"
-val logbackVersion = "1.2.12"
+val kotlinVersion = "1.9.25"
+val kotlinCoroutinesVersion = "1.8.1"
+val asyncHttpVersion = "0.2.20-gb1dbc02f34"
+val jacksonVersion = "2.17.2"
+val nettyVersion = "4.1.114.Final"
+val reactorNettyVersion = "1.1.23"
+val slf4jVersion = "2.0.16"
+val commonsCodecVersion = "1.16.1"
+val guavaVersion = "32.0.1-jre"
+val reactorVersion = "3.6.11"
+val logbackVersion = "1.5.11"
 
 plugins {
     kotlin("jvm") version "1.8.10"
@@ -91,7 +92,7 @@ dependencies {
     implementation(group = "org.jetbrains.kotlin", name = "kotlin-reflect", version = kotlinVersion)
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = kotlinCoroutinesVersion)
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = kotlinCoroutinesVersion)
-    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.3.4")
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.3.8")
 
     implementation(group = "org.slf4j", name = "slf4j-api", version = slf4jVersion)
     implementation(group = "commons-codec", name = "commons-codec", version = commonsCodecVersion)

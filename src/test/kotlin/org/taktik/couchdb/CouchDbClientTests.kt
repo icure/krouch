@@ -50,7 +50,6 @@ import org.taktik.couchdb.dao.CodeDAO
 import org.taktik.couchdb.entity.*
 import org.taktik.couchdb.exception.CouchDbConflictException
 import org.taktik.couchdb.exception.CouchDbException
-import reactor.tools.agent.ReactorDebugAgent
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URI
@@ -83,10 +82,6 @@ class CouchDbClientTests {
     )
 
     private val testDAO = CodeDAO(client)
-
-    init {
-        ReactorDebugAgent.init()
-    }
 
     @BeforeEach
     fun setupDatabase() {
@@ -295,7 +290,7 @@ class CouchDbClientTests {
 
     @Test
     fun testRequestGetJsonEvent() = runBlocking {
-        val asyncParser = ObjectMapper().also { it.registerModule(KotlinModule()) }.createNonBlockingByteArrayParser()
+        val asyncParser = ObjectMapper().also { it.registerModule(KotlinModule.Builder().build()) }.createNonBlockingByteArrayParser()
 
         val bytes = httpClient.uri("https://jsonplaceholder.typicode.com/posts").method(HttpMethod.GET).retrieve().toBytesFlow()
         val jsonEvents = bytes.toJsonEvents(asyncParser).toList()
@@ -551,7 +546,7 @@ class CouchDbClientTests {
         val activeTasksSample = File(javaClass.classLoader.getResource("active_tasks_sample.json")!!.file)
                 .readText()
                 .replace("\n".toRegex(), "")
-        val kotlinMapper = ObjectMapper().also { it.registerModule(KotlinModule()) }
+        val kotlinMapper = ObjectMapper().also { it.registerModule(KotlinModule.Builder().build()) }
         val activeTasks: List<ActiveTask> = kotlinMapper.readValue(activeTasksSample)
 
         assertTrue(activeTasks[0] is Indexer)
