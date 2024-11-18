@@ -42,10 +42,17 @@ data class Code(
         @JsonProperty("_attachments") val attachments: Map<String, Attachment>? = null,
         @JsonProperty("_conflicts") val conflicts: List<String>? = null,
         @JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
-        @JsonProperty("java_type") val javaType: String = "Code"
 ) : CouchDbDocument {
     companion object {
         fun from(type: String, code: String, version: String) = Code(id = "$type:$code:$version", type = type, code = code, version = version)
     }
     override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
+
+    @JsonProperty("java_type")
+    fun getJavaType(): String = "Code"
+
+    @JsonProperty("java_type")
+    fun setJavaType(value: String) {
+        if ("Code" != value) throw DeserializationTypeException(this.id)
+    }
 }

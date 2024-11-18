@@ -17,6 +17,7 @@
 
 package org.taktik.couchdb
 
+import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -37,6 +38,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -106,6 +108,61 @@ class CouchDbClientTests {
         println(query.toString())
         val res = client.queryViewIncludeDocs<String, String, Code>(query).toList().size
         assertEquals(0, res)
+    }
+
+    @Test
+    fun testExceptionIsThrownByDefaultOnMalformedEntity() {
+        runBlocking {
+            val user = User(id = UUID.randomUUID().toString())
+            val code = Code(id = UUID.randomUUID().toString())
+            client.create(user)
+            client.create(code)
+            assertThrows(JsonMappingException::class.java) {
+                runBlocking {
+                    client.get<Code>(listOf(user.id, code.id)).toList()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun testOnlyRelevantEntitiesAreReturnedOnMalformedEntityIfSpecified() {
+        runBlocking {
+            val user = User(id = UUID.randomUUID().toString())
+            val code = Code(id = UUID.randomUUID().toString())
+            client.create(user)
+            client.create(code)
+            val result = client.get<Code>(
+                listOf(user.id, code.id),
+                onEntityException = EntityExceptionBehaviour.Recover
+            ).toList()
+
+            assertEquals(1, result.size)
+            assertEquals(code.id, result.first().id)
+        }
+    }
+
+    @Test
+    fun testExceptionIsNotThrownOnMalformedEntityIfSpecified() {
+        runBlocking {
+            val user = User(id = UUID.randomUUID().toString())
+            val code = Code(id = UUID.randomUUID().toString())
+            client.create(user)
+            client.create(code)
+            val result = client.getForPagination(
+                listOf(user.id, code.id),
+                Code::class.java,
+                "test",
+                EntityExceptionBehaviour.Recover
+            ).toList()
+
+            val codeResult = result.filterIsInstance<ViewRowWithDoc<String, Any, Code>>().first()
+            assertEquals(code.id, codeResult.doc.id)
+
+            val userResult = result.filterIsInstance<ViewRowWithMalformedDoc<String, Any>>().first()
+            assertEquals(user.id, userResult.id)
+            assertInstanceOf(JsonMappingException::class.java, userResult.error)
+        }
     }
 
     @Test
