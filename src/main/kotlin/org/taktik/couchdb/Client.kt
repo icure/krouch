@@ -521,7 +521,9 @@ class ClientImpl(
     @Deprecated("Use overload with TypeReference instead to avoid loss of Generic information in lists")
     override suspend fun <T : CouchDbDocument> get(id: String, clazz: Class<T>, vararg options: Option): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(
+            dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) })
+        )
 
         @Suppress("DEPRECATION")
         return request.getCouchDbResponse(clazz, nullIf404 = true)
@@ -529,7 +531,9 @@ class ClientImpl(
 
     override suspend fun <T : CouchDbDocument> get(id: String, type: TypeReference<T>, vararg options: Option): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(
+            dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) })
+        )
 
         return request.getCouchDbResponse(type, nullIf404 = true)
     }
@@ -541,7 +545,9 @@ class ClientImpl(
         vararg options: Option
     ): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(
+            dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) })
+        )
 
         return request.getCouchDbResponse(type, nullIf404 = true)
     }
@@ -637,18 +643,22 @@ class ClientImpl(
                             emit(it)
                             res
                         }
+
                         is TotalCount -> {
                             Pair(res.first, Triple(res.second.first + it.total, res.second.second, res.second.third))
                         }
+
                         is Offset -> {
                             Pair(
                                 res.first,
                                 Triple(res.second.first, min(res.second.second, it.offset), res.second.third)
                             )
                         }
+
                         is UpdateSequence -> {
                             Pair(res.first, Triple(res.second.first, res.second.second, max(res.second.third, it.seq)))
                         }
+
                         else -> res
                     }
                 }
@@ -663,15 +673,19 @@ class ClientImpl(
                             emit(it)
                             counters
                         }
+
                         is TotalCount -> {
                             Triple(counters.first + it.total, counters.second, counters.third)
                         }
+
                         is Offset -> {
                             Triple(counters.first, min(counters.second, it.offset), counters.third)
                         }
+
                         is UpdateSequence -> {
                             Triple(counters.first, counters.second, max(counters.third, it.seq))
                         }
+
                         else -> counters
                     }
                 } else remainder.second
@@ -691,7 +705,9 @@ class ClientImpl(
         require(id.isNotBlank()) { "Id cannot be blank" }
         require(attachmentId.isNotBlank()) { "attachmentId cannot be blank" }
         val request =
-            newRequest(dbURI.addSinglePathComponent(id).addSinglePathComponent(attachmentId).let { u -> rev?.let { u.param("rev", it) } ?: u })
+            newRequest(
+                dbURI.addSinglePathComponent(id).addSinglePathComponent(attachmentId)
+                    .let { u -> rev?.let { u.param("rev", it) } ?: u })
 
         return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toBytesFlow()
     }
@@ -762,8 +778,8 @@ class ClientImpl(
         val docId = entity.id
         require(docId.isNotBlank()) { "Id cannot be blank" }
         if (strictMode) {
-            require(entity.rev != null) { "rev cannot be null"}
-            require(entity.rev!!.isNotBlank()) { "rev cannot be blank"}
+            require(entity.rev != null) { "rev cannot be null" }
+            require(entity.rev!!.isNotBlank()) { "rev cannot be blank" }
             require(entity.rev!!.matches(Regex("^[0-9]+-[a-z0-9]+$"))) { "Invalid rev format" }
         } else {
             if (entity.rev.isNullOrBlank()) {
@@ -834,7 +850,8 @@ class ClientImpl(
         val request = newRequest(uri, objectMapper.writeValueAsString(requestBody), requestId = requestId)
 
         val asyncParser = objectMapper.createNonBlockingByteArrayParser()
-        val jsonEvents = request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toJsonEvents(asyncParser).produceIn(scope)
+        val jsonEvents =
+            request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toJsonEvents(asyncParser).produceIn(scope)
         check(jsonEvents.receive() == StartArray) { "Expected result to start with StartArray" }
         while (true) { // Loop through result array
             val nextValue = jsonEvents.nextValue(asyncParser) ?: break
@@ -854,7 +871,8 @@ class ClientImpl(
 
             /** Execute the request and get the response as a Flow of [JsonEvent] **/
             val jsonEvents =
-                request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toJsonEvents(asyncParser).produceIn(this)
+                request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toJsonEvents(asyncParser)
+                    .produceIn(this)
 
             // Response should be a Json object
             val firstEvent = jsonEvents.receive()
@@ -875,18 +893,22 @@ class ClientImpl(
                                     } != null) { // Loop through doc objects
                                 }
                             }
+
                             BOOKMARK_NAME -> {
                                 emit(MangoQueryResult(null, jsonEvents.nextSingleValueAs<StringValue>().value))
                             }
+
                             ERROR_NAME -> {
                                 val error = jsonEvents.nextSingleValueAs<StringValue>().value
                                 jsonEvents.receive()
                                 val reason = jsonEvents.nextSingleValueAs<StringValue>().value
                                 throw MangoResultException(error, reason)
                             }
+
                             else -> jsonEvents.skipValue()
                         }
                     }
+
                     else -> println("Expected EndObject or FieldName, found $nextEvent")
                 }
             }
@@ -1010,6 +1032,7 @@ class ClientImpl(
                                                     )
                                                 }
                                             }
+
                                             else -> error("Expected EndObject or FieldName")
                                         }
                                     }
@@ -1030,24 +1053,30 @@ class ClientImpl(
 
                                 }
                             }
+
                             TOTAL_ROWS_FIELD_NAME -> {
                                 val totalValue = jsonEvents.nextSingleValueAs<NumberValue<*>>().value
                                 emit(TotalCount(totalValue.toInt()))
                             }
+
                             OFFSET_FIELD_NAME -> {
                                 val offsetValue = jsonEvents.nextSingleValueAsOrNull<NumberValue<*>>()?.value ?: -1
                                 emit(Offset(offsetValue.toInt()))
                             }
+
                             UPDATE_SEQUENCE_NAME -> {
                                 val offsetValue = jsonEvents.nextSingleValueAs<NumberValue<*>>().value
                                 emit(UpdateSequence(offsetValue.toLong()))
                             }
+
                             ERROR_FIELD_NAME -> {
                                 error("Error executing request $request: ${jsonEvents.nextSingleValueAs<StringValue>().value}")
                             }
+
                             else -> jsonEvents.skipValue()
                         }
                     }
+
                     else -> error("Expected EndObject or FieldName, found $nextEvent")
                 }
             }
@@ -1055,7 +1084,11 @@ class ClientImpl(
 
             log.debug("Request {} : timing {} ms", request, System.currentTimeMillis() - start)
         }
-    }.catch { e -> if (e !is SkippedQueryException) { throw e } }
+    }.catch { e ->
+        if (e !is SkippedQueryException) {
+            throw e
+        }
+    }
 
     override fun <T : CouchDbDocument> subscribeForChanges(
         clazz: Class<T>,
@@ -1141,7 +1174,8 @@ class ClientImpl(
             ids.bufferedChunks(20, 100).collect { dbIds ->
                 val request = newRequest(uri, objectMapper.writeValueAsString(mapOf("keys" to dbIds)), HttpMethod.POST)
                 val jsonEvents =
-                    request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toJsonEvents(asyncParser).produceIn(this)
+                    request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toJsonEvents(asyncParser)
+                        .produceIn(this)
                 val firstEvent = jsonEvents.receive()
                 check(firstEvent == StartArray) { "Expected data to start with an Array" }
                 while (jsonEvents.nextValue(asyncParser)?.let {
@@ -1161,7 +1195,8 @@ class ClientImpl(
         coroutineScope {
             val request = newRequest(uri)
             val jsonEvents =
-                request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toJsonEvents(asyncParser).produceIn(this)
+                request.retrieveAndInjectRequestId(headerHandlers, timingHandler).toJsonEvents(asyncParser)
+                    .produceIn(this)
             val firstEvent = jsonEvents.receive()
             check(firstEvent == StartArray) { "Expected data to start with an Array" }
             while (jsonEvents.nextValue(asyncParser)?.let {
@@ -1435,31 +1470,31 @@ class ClientImpl(
         .toFlow()
 
     private fun Response.registerStatusMappers() =
-            onStatus(403) { response ->
-                throw CouchDbException(
-                        "Unauthorized Access",
-                        response.statusCode,
-                        response.responseBodyAsString(),
-                        couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
-                        couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
-                )
-            }
+        onStatus(403) { response ->
+            throw CouchDbException(
+                "Unauthorized Access",
+                response.statusCode,
+                response.responseBodyAsString(),
+                couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
+                couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
+            )
+        }
             .onStatus(404) { response ->
                 throw CouchDbException(
-                        "Document not found",
-                        response.statusCode,
-                        response.responseBodyAsString(),
-                        couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
-                        couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
+                    "Document not found",
+                    response.statusCode,
+                    response.responseBodyAsString(),
+                    couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
+                    couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
                 )
             }
             .onStatus(409) { response ->
                 throw CouchDbConflictException(
-                        "Document update Conflict",
-                        response.statusCode,
-                        response.responseBodyAsString(),
-                        couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
-                        couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
+                    "Document update Conflict",
+                    response.statusCode,
+                    response.responseBodyAsString(),
+                    couchDbRequestId = response.headers.find { it.key == "X-Couch-Request-ID" }?.value,
+                    couchDbBodyTime = response.headers.find { it.key == "X-Couchdb-Body-Time" }?.value?.toLong()
                 )
             }
 
@@ -1474,6 +1509,6 @@ private fun Request.retrieveAndInjectRequestId(
 ): Response = this.retrieve().let {
     headerHandlers.entries.fold(it) { resp, (header, handler) ->
         resp.onHeader(header) { value -> mono { handler.handle(value) } }
-    }.let{ resp -> timingHandler?.let { resp.withTiming(it) } ?: resp }
+    }.let { resp -> timingHandler?.let { resp.withTiming(it) } ?: resp }
 }
 
