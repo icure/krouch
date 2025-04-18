@@ -17,8 +17,45 @@
 
 package org.taktik.couchdb.entity
 
-enum class Option(private val param: String) {
-    CONFLICTS("conflicts"), REVISIONS_INFO("revs_info"), ATTACHMENTS("attachments");
+sealed interface Option {
+    val queryParamName: String
+    val queryParamValue: String
 
-    fun paramName() = param
+    companion object {
+        @Deprecated(
+            message = "Replaced by data object",
+            replaceWith = ReplaceWith("Option.Conflicts", "org.taktik.couchdb.entity.Option")
+        )
+        val CONFLICTS = Conflicts
+        @Deprecated(
+            message = "Replaced by data object",
+            replaceWith = ReplaceWith("Option.RevisionsInfo", "org.taktik.couchdb.entity.Option")
+        )
+        val REVISIONS_INFO = RevisionsInfo
+        @Deprecated(
+            message = "Replaced by data object",
+            replaceWith = ReplaceWith("Option.Attachments", "org.taktik.couchdb.entity.Option")
+        )
+        val ATTACHMENTS = Attachments
+    }
+    data object Conflicts : Option {
+        override val queryParamName: String
+            get() = "conflicts"
+        override val queryParamValue: String
+            get() = "true"
+    }
+
+    data object RevisionsInfo : Option {
+        override val queryParamName: String
+            get() = "revs_info"
+        override val queryParamValue: String
+            get() = "true"
+    }
+
+    data object Attachments : Option {
+        override val queryParamName: String
+            get() = "attachments"
+        override val queryParamValue: String
+            get() = "true"
+    }
 }

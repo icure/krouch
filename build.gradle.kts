@@ -23,10 +23,11 @@ val repoUsername: String by project
 val repoPassword: String by project
 val mavenReleasesRepository: String by project
 
-val kotlinVersion = "1.9.25"
+val kotlinVersion = "2.1.0"
 val kotlinCoroutinesVersion = "1.8.1"
 val asyncHttpVersion = "0.2.20-gb1dbc02f34"
 val jacksonVersion = "2.17.2"
+val ktorVersion =  "3.0.3"
 val nettyVersion = "4.1.114.Final"
 val reactorNettyVersion = "1.1.23"
 val slf4jVersion = "2.0.16"
@@ -36,7 +37,7 @@ val reactorVersion = "3.6.11"
 val logbackVersion = "1.5.11"
 
 plugins {
-    kotlin("jvm") version "1.8.10"
+    kotlin("jvm") version "2.1.0"
     id("com.taktik.gradle.maven-repository") version "1.0.7"
     id("com.taktik.gradle.git-version") version "2.0.8-gb47b2d0e35"
     id("com.github.jk1.dependency-license-report") version "2.0"
@@ -73,6 +74,7 @@ apply(plugin = "maven-publish")
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    maxHeapSize = "4096m"
 }
 
 tasks.withType<KotlinCompile> {
@@ -83,7 +85,18 @@ tasks.withType<KotlinCompile> {
 }
 
 dependencies {
+    implementation(group = "io.ktor", name = "ktor-client-core", version = ktorVersion)
+    // For http calls okhttp is by far the fastest on large requests (16 Mb response body).
+    // Didn't test yet with https, didn't test with small requests.
+    implementation(group = "io.ktor", name = "ktor-client-cio", version = ktorVersion)
+    implementation(group = "io.ktor", name = "ktor-client-content-negotiation", version = ktorVersion)
+    implementation(group = "io.ktor", name = "ktor-serialization-jackson", version = ktorVersion)
+
+    //TODO remove this group
     implementation(group = "io.icure", name = "async-jackson-http-client", version = asyncHttpVersion)
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = kotlinCoroutinesVersion)
+    implementation(group = "io.projectreactor", name = "reactor-core", version = reactorVersion)
+    implementation(group = "io.projectreactor.netty", name = "reactor-netty", version = reactorNettyVersion)
 
     implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = jacksonVersion)
     implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = jacksonVersion)
@@ -91,16 +104,13 @@ dependencies {
     implementation(group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version = kotlinVersion)
     implementation(group = "org.jetbrains.kotlin", name = "kotlin-reflect", version = kotlinVersion)
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = kotlinCoroutinesVersion)
-    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = kotlinCoroutinesVersion)
+
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.3.8")
 
     implementation(group = "org.slf4j", name = "slf4j-api", version = slf4jVersion)
     implementation(group = "commons-codec", name = "commons-codec", version = commonsCodecVersion)
 
     implementation(group = "com.google.guava", name = "guava", version = guavaVersion)
-
-    implementation(group = "io.projectreactor", name = "reactor-core", version = reactorVersion)
-    implementation(group = "io.projectreactor.netty", name = "reactor-netty", version = reactorNettyVersion)
 
     // Logging
     testImplementation(group = "org.slf4j", name = "jul-to-slf4j", version = slf4jVersion)

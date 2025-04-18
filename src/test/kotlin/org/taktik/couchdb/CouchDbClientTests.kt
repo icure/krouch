@@ -35,7 +35,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -64,20 +63,14 @@ import kotlin.random.Random
 
 @FlowPreview
 @ExperimentalCoroutinesApi
-class CouchDbClientTests {
-    private val log = org.slf4j.LoggerFactory.getLogger(this::class.java)
-
-    private val databaseHost =  System.getProperty("krouch.test.couchdb.server.url", "http://localhost:5984")
-    private val databaseName =  System.getProperty("krouch.test.couchdb.database.name", "krouch-test")
-    private val userName = System.getProperty("krouch.test.couchdb.username", "admin")
-    private val password = System.getProperty("krouch.test.couchdb.password", "password")
+class CouchDbClientTests : CouchDbClientTestBase() {
 
     private val testResponseAsString = URL("https://jsonplaceholder.typicode.com/posts").openStream().use { it.readBytes().toString(StandardCharsets.UTF_8) }
     private val httpClient = NettyWebClient()
     private val client = ClientImpl(
         httpClient,
         URI(databaseHost),
-        databaseName,
+        defaultTestDatabaseName,
         userName,
         password,
         strictMode = true
@@ -559,23 +552,23 @@ class CouchDbClientTests {
     fun testReplicateCommands() = runBlocking {
         if (client.getCouchDBVersion() >= "3.2.0") {
             val oneTimeCmd = ReplicateCommand.oneTime(
-                    sourceUrl = URI("${databaseHost}/${databaseName}"),
+                    sourceUrl = URI("${databaseHost}/${defaultTestDatabaseName}"),
                     sourceUsername = userName,
                     sourcePassword = password,
-                    targetUrl = URI("${databaseHost}/${databaseName}_one_time"),
+                    targetUrl = URI("${databaseHost}/${defaultTestDatabaseName}_one_time"),
                     targetUsername = userName,
                     targetPassword = password,
-                    id = "${databaseName}_one_time"
+                    id = "${defaultTestDatabaseName}_one_time"
             )
 
             val continuousCmd = ReplicateCommand.continuous(
-                    sourceUrl = URI("${databaseHost}/${databaseName}"),
+                    sourceUrl = URI("${databaseHost}/${defaultTestDatabaseName}"),
                     sourceUsername = userName,
                     sourcePassword = password,
-                    targetUrl = URI("${databaseHost}/${databaseName}_continuous"),
+                    targetUrl = URI("${databaseHost}/${defaultTestDatabaseName}_continuous"),
                     targetUsername = userName,
                     targetPassword = password,
-                    id = "${databaseName}_continuous"
+                    id = "${defaultTestDatabaseName}_continuous"
             )
             val oneTimeResponse = client.replicate(oneTimeCmd)
             assertTrue(oneTimeResponse.ok)

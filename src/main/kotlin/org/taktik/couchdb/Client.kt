@@ -263,16 +263,73 @@ inline fun <reified T : CouchDbDocument> Client.subscribeForChanges(
     )
 
 interface Client {
-    // CouchDB options
+    // region Cluster management
+
+    /**
+     * Get a configuration of this client's cluster (independent of the configured db)
+     * @return the membership information of this client's cluster.
+     */
     suspend fun membership(): Membership
+
+    /**
+     * Get a configuration of a node in this client's cluster (independent of the configured db).
+     * @param nodeName the name of a node in this client cluster
+     * @param section section of the configuration
+     * @param key key of the configuration
+     * @return The configured value if present, or null if not.
+     */
     suspend fun getConfigOption(nodeName: String, section: String, key: String): String?
+
+    /**
+     * Set a configuration of a node in this client's cluster (independent of the configured db).
+     * @param nodeName the name of a node in this client cluster
+     * @param section section of the configuration
+     * @param key key of the configuration
+     * @param newValue new value for the configuration
+     */
     suspend fun setConfigOption(nodeName: String, section: String, key: String, newValue: String)
 
-    // Check if db exists
+    /**
+     * Deletes/unsets a configuration of a node in this client's cluster (independent of the configured db).
+     * @param nodeName the name of a node in this client cluster
+     * @param section section of the configuration
+     * @param key key of the configuration
+     */
+    suspend fun deleteConfigOption(nodeName: String, section: String, key: String)
+
+    // endregion
+
+    // region Database management
+
+    /**
+     * Create the database of this client.
+     * @param q Number of shards for the database. If null the default value configured on couchdb will be used.
+     * @param q Number of replicas for the database. If null the default value configured on couchdb will be used.
+     * @return if the database was created successfully.
+     */
+    suspend fun create(q: Int?, n: Int?, requestId: String? = null): Boolean
+
+    /**
+     * Sets the security object for the database.
+     * @param security the security object ot set
+     * @return if the request was successful.
+     */
+    suspend fun security(security: Security): Boolean
+
+    /**
+     * @return if the database associated to this client exists.
+     */
     suspend fun exists(): Boolean
+
+    /**
+     * Deletes the database associated to this client, including its data.
+     */
     suspend fun destroyDatabase(): Boolean
 
-    // CRUD methods
+    // endregion
+
+    // region Documents CRUD
+
     suspend fun <T : CouchDbDocument> get(id: String, clazz: Class<T>, vararg options: Option): T?
     suspend fun <T : CouchDbDocument> get(id: String, type: TypeReference<T>, vararg options: Option): T?
     suspend fun <T : CouchDbDocument> get(
@@ -348,6 +405,8 @@ interface Client {
 
     fun bulkDeleteByIdAndRev(entities: Collection<IdAndRev>, requestId: String? = null): Flow<BulkUpdateResult>
 
+    // endregion
+
     // Query
     fun <K, V, T> queryView(
         query: ViewQuery,
@@ -374,8 +433,11 @@ interface Client {
     ): Flow<Change<T>>
 
     suspend fun activeTasks(): List<ActiveTask>
-    suspend fun create(q: Int?, n: Int?, requestId: String? = null): Boolean
-    suspend fun security(security: Security): Boolean
+
+    /**
+     * Get the ids of design documents in the current database.
+     * @return the id of the design documents, including the `_design/` prefix
+     */
     suspend fun designDocumentsIds(): Set<String>
     suspend fun schedulerDocs(): Scheduler.Docs
     suspend fun schedulerJobs(): Scheduler.Jobs
@@ -422,6 +484,10 @@ class ClientImpl(
 ) : Client {
     private val dbURI = couchDBUri.addSinglePathComponent(dbName)
     private val log = LoggerFactory.getLogger(javaClass.name)
+
+    override suspend fun deleteConfigOption(nodeName: String, section: String, key: String) {
+        TODO("Not yet implemented")
+    }
 
     /**
      * Alternative constructor for client with constant username and password.
@@ -521,7 +587,7 @@ class ClientImpl(
     @Deprecated("Use overload with TypeReference instead to avoid loss of Generic information in lists")
     override suspend fun <T : CouchDbDocument> get(id: String, clazz: Class<T>, vararg options: Option): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.queryParamName, listOf("true")) }))
 
         @Suppress("DEPRECATION")
         return request.getCouchDbResponse(clazz, nullIf404 = true)
@@ -529,7 +595,7 @@ class ClientImpl(
 
     override suspend fun <T : CouchDbDocument> get(id: String, type: TypeReference<T>, vararg options: Option): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.queryParamName, listOf("true")) }))
 
         return request.getCouchDbResponse(type, nullIf404 = true)
     }
@@ -541,7 +607,7 @@ class ClientImpl(
         vararg options: Option
     ): T? {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.paramName(), listOf("true")) }))
+        val request = newRequest(dbURI.appendDocumentOrDesignDocId(id).params(options.associate { Pair(it.queryParamName, listOf("true")) }))
 
         return request.getCouchDbResponse(type, nullIf404 = true)
     }
@@ -591,7 +657,7 @@ class ClientImpl(
         require(rev.isNotBlank()) { "Rev cannot be blank" }
         return newRequest(
             dbURI.appendDocumentOrDesignDocId(id)
-                .params((listOf("rev" to listOf(rev)) + options.map { Pair(it.paramName(), listOf("true")) }).toMap())
+                .params((listOf("rev" to listOf(rev)) + options.map { Pair(it.queryParamName, listOf("true")) }).toMap())
         )
     }
 
