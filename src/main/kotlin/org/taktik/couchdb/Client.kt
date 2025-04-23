@@ -71,7 +71,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.produceIn
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.mono
 import org.slf4j.LoggerFactory
 import org.taktik.couchdb.entity.ActiveTask
@@ -249,14 +248,15 @@ inline fun <reified T : CouchDbDocument> Client.bulkUpdate(entities: List<T>): F
 
 suspend inline fun <reified T : CouchDbDocument> Client.getChanges(
     since: String,
+    limit: Int,
     classDiscriminator: String,
-    limit: Int
+    discriminatorValue: String? = null
 ) = getChanges(
-    T::class.java,
     object : TypeReference<ChangesChunk<T>>() {},
     since,
+    limit,
     classDiscriminator,
-    limit
+    discriminatorValue ?: requireNotNull(T::class.qualifiedName) { "Class ${T::class} has no qualified name, provide discriminator value explicitly." }
 )
 
 inline fun <reified T : CouchDbDocument> Client.subscribeForChanges(
@@ -376,20 +376,21 @@ interface Client {
 
     fun <T> mangoQuery(query: MangoQuery<T>, docType: Class<T>): Flow<ViewQueryResultEvent>
 
-    // Changes observing
     /**
      * @param since Start giving changes from since, excluded. Can be "0" (from the start), "now" (returns just the
      * next last_seq and no entries), or a previous [ChangesChunk.last_seq].
-     * @param classDiscriminator property on the entity that contains the class canonical name
      * @param limit maximum number of entities to return in the chunk. Note that this limit applies after the filtering:
      * couchdb may analyze more changes than [limit] to find enough entries to satisfy it.
+     * @param classDiscriminator property on the entity that contains the class canonical name
+     * @param discriminatorValue value for entities of type T in [classDiscriminator]
      */
+    // Changes observing
     suspend fun <T : CouchDbDocument> getChanges(
-        clazz: Class<T>,
         typeReference: TypeReference<ChangesChunk<T>>,
         since: String,
+        limit: Int,
         classDiscriminator: String,
-        limit: Int
+        discriminatorValue: String
     ): ChangesChunk<T>
 
     /**
@@ -1368,11 +1369,11 @@ class ClientImpl(
     ) : Serializable
 
     override suspend fun <T : CouchDbDocument> getChanges(
-        clazz: Class<T>,
         typeReference: TypeReference<ChangesChunk<T>>,
         since: String,
+        limit: Int,
         classDiscriminator: String,
-        limit: Int
+        discriminatorValue: String
     ): ChangesChunk<T> =
         newRequest(
             dbURI.addSinglePathComponent("_changes")
@@ -1381,7 +1382,7 @@ class ClientImpl(
                 .param("since", since)
                 .param("filter", "_selector"),
             method = HttpMethod.POST,
-            body = objectMapper.writeValueAsString(SelectorFilter(mapOf(classDiscriminator to clazz.canonicalName)))
+            body = objectMapper.writeValueAsString(SelectorFilter(mapOf(classDiscriminator to discriminatorValue)))
         ).retrieveAndInjectRequestId(headerHandlers, timingHandler).toFlow().toObject(
             typeReference,
             objectMapper,

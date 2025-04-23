@@ -781,18 +781,18 @@ class CouchDbClientTests {
         client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 6))
         client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 7))
         client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 8))
-        client.getChanges<ChangeTestEntityA>("0", "classname", 100).apply {
+        client.getChanges<ChangeTestEntityA>("0", 100, "classname").apply {
             assertEquals(0, pending)
             assertEquals(expectedResults, results.map { it.doc })
             assertTrue(last_seq.startsWith("14-"))
         }
-        val nextSince = client.getChanges<ChangeTestEntityA>("0", "classname", 6).run {
+        val nextSince = client.getChanges<ChangeTestEntityA>("0", 6, "classname").run {
             assertEquals(8, pending)
             assertEquals(expectedResults.take(4), results.map { it.doc })
             assertTrue(last_seq.startsWith("6-"))
             last_seq
         }
-        client.getChanges<ChangeTestEntityA>(nextSince, "classname", 6).run {
+        client.getChanges<ChangeTestEntityA>(nextSince, 6, "classname").run {
             // Not enough entities matching filter remaining to reach limit, consumes everything left
             assertEquals(0, pending)
             assertEquals(expectedResults.takeLast(2), results.map { it.doc })
