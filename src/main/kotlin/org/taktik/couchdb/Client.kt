@@ -71,11 +71,13 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.produceIn
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactor.mono
 import org.slf4j.LoggerFactory
 import org.taktik.couchdb.entity.ActiveTask
 import org.taktik.couchdb.entity.AttachmentResult
 import org.taktik.couchdb.entity.Change
+import org.taktik.couchdb.entity.ChangesChunk
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
 import org.taktik.couchdb.entity.DesignDocumentResult
 import org.taktik.couchdb.entity.EntityExceptionBehaviour
@@ -97,6 +99,7 @@ import org.taktik.couchdb.mango.MangoResultException
 import org.taktik.couchdb.util.appendDocumentOrDesignDocId
 import org.taktik.couchdb.util.bufferedChunks
 import reactor.core.publisher.Mono
+import java.io.Serializable
 import java.lang.reflect.Type
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
@@ -244,6 +247,18 @@ suspend inline fun <reified T : CouchDbDocument> Client.update(entity: T): T = t
 inline fun <reified T : CouchDbDocument> Client.bulkUpdate(entities: List<T>): Flow<BulkUpdateResult> =
     this.bulkUpdate(entities, T::class.java)
 
+suspend inline fun <reified T : CouchDbDocument> Client.getChanges(
+    since: String,
+    classDiscriminator: String,
+    limit: Int
+) = getChanges(
+    T::class.java,
+    object : TypeReference<ChangesChunk<T>>() {},
+    since,
+    classDiscriminator,
+    limit
+)
+
 inline fun <reified T : CouchDbDocument> Client.subscribeForChanges(
     classDiscriminator: String,
     noinline classProvider: (String) -> Class<T>?,
@@ -362,6 +377,24 @@ interface Client {
     fun <T> mangoQuery(query: MangoQuery<T>, docType: Class<T>): Flow<ViewQueryResultEvent>
 
     // Changes observing
+    /**
+     * @param since Start giving changes from since, excluded. Can be "0" (from the start), "now" (returns just the
+     * next last_seq and no entries), or a previous [ChangesChunk.last_seq].
+     * @param classDiscriminator property on the entity that contains the class canonical name
+     * @param limit maximum number of entities to return in the chunk. Note that this limit applies after the filtering:
+     * couchdb may analyze more changes than [limit] to find enough entries to satisfy it.
+     */
+    suspend fun <T : CouchDbDocument> getChanges(
+        clazz: Class<T>,
+        typeReference: TypeReference<ChangesChunk<T>>,
+        since: String,
+        classDiscriminator: String,
+        limit: Int
+    ): ChangesChunk<T>
+
+    /**
+     * WARNING: consumes a connection permanently
+     */
     fun <T : CouchDbDocument> subscribeForChanges(
         clazz: Class<T>,
         classDiscriminator: String,
@@ -1329,6 +1362,31 @@ class ClientImpl(
     private suspend inline fun <reified T> getCouchDbResponse(request: Request): T? {
         return request.getCouchDbResponse(object : TypeReference<T>() {}, nullIf404 = true)
     }
+
+    private data class SelectorFilter(
+        val selector: Map<String, String> // Technically could be more complicated but this is good enough for what we need
+    ) : Serializable
+
+    override suspend fun <T : CouchDbDocument> getChanges(
+        clazz: Class<T>,
+        typeReference: TypeReference<ChangesChunk<T>>,
+        since: String,
+        classDiscriminator: String,
+        limit: Int
+    ): ChangesChunk<T> =
+        newRequest(
+            dbURI.addSinglePathComponent("_changes")
+                .param("feed", "normal")
+                .param("include_docs", "true")
+                .param("since", since)
+                .param("filter", "_selector"),
+            method = HttpMethod.POST,
+            body = objectMapper.writeValueAsString(SelectorFilter(mapOf(classDiscriminator to clazz.canonicalName)))
+        ).retrieveAndInjectRequestId(headerHandlers, timingHandler).toFlow().toObject(
+            typeReference,
+            objectMapper,
+            false
+        )!!
 
     @OptIn(FlowPreview::class)
     private fun <T : CouchDbDocument> internalSubscribeForChanges(
