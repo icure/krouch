@@ -22,3 +22,17 @@ data class Change<out T>(val seq: String, val id: String, val changes: List<Any>
         return "Change(seq=$seq, id=$id, changes=$changes, deleted=$deleted)"
     }
 }
+
+data class ChangesChunk<out T>(
+    /**
+     * Last change included in the [results], or if empty the last change done on the DB
+     */
+    val last_seq: String,
+    /**
+     * Number of changes after [last_seq]. Note that of pending doesn't consider any filter.
+     * If you use a filter even and pending > 0 doing a request with [last_seq] may give empty results (but updated
+     * last_seq).
+     */
+    val pending: Long,
+    val results: List<Change<T>>
+)

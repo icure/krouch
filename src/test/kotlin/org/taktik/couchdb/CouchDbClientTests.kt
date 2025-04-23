@@ -17,6 +17,8 @@
 
 package org.taktik.couchdb
 
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -723,6 +725,80 @@ class CouchDbClientTests {
         val dd = client.get<DesignDocument>("_design/${Code::class.java.simpleName}")
         assertNotNull(dd)
         assertNull(dd!!.views["all_obsolete"])
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    data class ChangeTestEntityA(
+        @JsonProperty("_id") override val id: String,
+        val data: String,
+        @JsonProperty("_rev") override val rev: String? = null,
+        @JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
+    ) : CouchDbDocument {
+        var classname
+            get() = this::class.qualifiedName
+            set(value) { require(this::class.qualifiedName == value) }
+
+        override fun withIdRev(id: String?, rev: String) = id?.let { copy(id = it, rev = rev) } ?: copy(rev = rev)
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    data class ChangeTestEntityB(
+        @JsonProperty("_id") override val id: String,
+        val data: Int,
+        @JsonProperty("_rev") override val rev: String? = null,
+        @JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
+    ) : CouchDbDocument {
+        var classname
+            get() = this::class.qualifiedName
+            set(value) { require(this::class.qualifiedName == value) }
+
+        override fun withIdRev(id: String?, rev: String) = id?.let { copy(id = it, rev = rev) } ?: copy(rev = rev)
+    }
+
+    @Test
+    fun testGetChanges(): Unit = runBlocking {
+        val client = ClientImpl(
+            httpClient,
+            URI(databaseHost),
+            "changestestdb-${System.currentTimeMillis()}",
+            userName,
+            password,
+            strictMode = true
+        )
+        client.create(q = 1, n = 1)
+        val expectedResults = mutableListOf<ChangeTestEntityA>()
+        client.create(ChangeTestEntityA(UUID.randomUUID().toString(), "1")).also { expectedResults += it }
+        client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 1))
+        client.create(ChangeTestEntityA(UUID.randomUUID().toString(), "2")).also { expectedResults += it }
+        client.create(ChangeTestEntityA(UUID.randomUUID().toString(), "3")).also { expectedResults += it }
+        client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 2))
+        client.create(ChangeTestEntityA(UUID.randomUUID().toString(), "4")).also { expectedResults += it }
+        client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 3))
+        client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 4))
+        client.create(ChangeTestEntityA(UUID.randomUUID().toString(), "5")).also { expectedResults += it }
+        client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 5))
+        client.create(ChangeTestEntityA(UUID.randomUUID().toString(), "6")).also { expectedResults += it }
+        client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 6))
+        client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 7))
+        client.create(ChangeTestEntityB(UUID.randomUUID().toString(), 8))
+        client.getChanges<ChangeTestEntityA>("0", "classname", 100).apply {
+            assertEquals(0, pending)
+            assertEquals(expectedResults, results.map { it.doc })
+            assertTrue(last_seq.startsWith("14-"))
+        }
+        val nextSince = client.getChanges<ChangeTestEntityA>("0", "classname", 6).run {
+            assertEquals(8, pending)
+            assertEquals(expectedResults.take(4), results.map { it.doc })
+            assertTrue(last_seq.startsWith("6-"))
+            last_seq
+        }
+        client.getChanges<ChangeTestEntityA>(nextSince, "classname", 6).run {
+            // Not enough entities matching filter remaining to reach limit, consumes everything left
+            assertEquals(0, pending)
+            assertEquals(expectedResults.takeLast(2), results.map { it.doc })
+            assertTrue(last_seq.startsWith("14-"))
+            last_seq
+        }
     }
 
     fun testAttachmentSize() = runBlocking {
