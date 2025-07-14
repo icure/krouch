@@ -25,15 +25,15 @@ val mavenReleasesRepository: String by project
 
 val kotlinVersion = "1.9.25"
 val kotlinCoroutinesVersion = "1.8.1"
-val asyncHttpVersion = "0.2.20-gb1dbc02f34"
-val jacksonVersion = "2.17.2"
-val nettyVersion = "4.1.114.Final"
-val reactorNettyVersion = "1.1.23"
+val asyncHttpVersion = "0.2.21-g0020856bdb"
+val jacksonVersion = "2.19.1"
+val nettyVersion = "4.1.122.Final"
+val reactorNettyVersion = "1.2.7"
 val slf4jVersion = "2.0.16"
 val commonsCodecVersion = "1.16.1"
-val guavaVersion = "32.1.3-jre"
-val reactorVersion = "3.6.11"
-val logbackVersion = "1.5.11"
+val guavaVersion = "33.4.8-jre"
+val reactorVersion = "3.7.7"
+val logbackVersion = "1.5.18"
 
 plugins {
     kotlin("jvm") version "1.8.10"
