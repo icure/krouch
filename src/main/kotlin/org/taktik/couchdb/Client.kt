@@ -417,7 +417,7 @@ interface Client {
     suspend fun deleteReplication(docId: String): ReplicatorResponse
     suspend fun getCouchDBVersion(): String
     fun databaseInfos(ids: Flow<String>): Flow<DatabaseInfoWrapper>
-    fun allDatabases(): Flow<String>
+    fun allDatabases(startkey: String? = null, endkey: String? = null): Flow<String>
 }
 
 private const val NOT_FOUND_ERROR = "not_found"
@@ -1220,11 +1220,15 @@ class ClientImpl(
         }
     }
 
-    override fun allDatabases(): Flow<String> = flow {
+    override fun allDatabases(startkey: String?, endkey: String?): Flow<String> = flow {
         val asyncParser = objectMapper.createNonBlockingByteArrayParser()
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
-        )).addSinglePathComponent("_all_dbs")
+        )).addSinglePathComponent("_all_dbs").let {
+            if (startkey != null) it.param("startkey", startkey) else it
+        }.let {
+            if (endkey != null) it.param("endkey", endkey) else it
+        }
 
         coroutineScope {
             val request = newRequest(uri)
