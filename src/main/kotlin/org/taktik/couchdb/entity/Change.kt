@@ -34,5 +34,5 @@ data class ChangesChunk<out T>(
      * last_seq).
      */
     val pending: Long,
-    val results: List<Change<T>>\
+    val results: List<Change<T>>
 )
