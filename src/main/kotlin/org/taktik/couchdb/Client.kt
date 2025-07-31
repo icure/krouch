@@ -53,7 +53,6 @@ import io.icure.asyncjacksonhttpclient.parser.split
 import io.icure.asyncjacksonhttpclient.parser.toJsonEvents
 import io.icure.asyncjacksonhttpclient.parser.toObject
 import io.netty.handler.codec.http.HttpHeaderNames
-import jdk.nashorn.internal.objects.NativeJava.type
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
