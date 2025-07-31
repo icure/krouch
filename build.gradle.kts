@@ -83,7 +83,7 @@ tasks.withType<KotlinCompile> {
 }
 
 dependencies {
-    implementation(group = "io.icure", name = "async-jackson-http-client", version = asyncHttpVersion)
+    api(group = "io.icure", name = "async-jackson-http-client", version = asyncHttpVersion)
 
     implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = jacksonVersion)
     implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = jacksonVersion)
