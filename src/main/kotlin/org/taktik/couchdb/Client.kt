@@ -423,12 +423,26 @@ interface Client {
         timeout: Duration? = null,
         requestId: String? = null
     ): Pair<T,Boolean>
+    suspend fun <T : CouchDbDocument> createWithQuorum(
+        entity: T,
+        type: Class<T>,
+        quorum: Int,
+        timeout: Duration? = null,
+        requestId: String? = null
+    ): Pair<T,Boolean>
     /**
      * Same as [createWithQuorum] but for already existing entities
      */
     suspend fun <T : CouchDbDocument> updateWithQuorum(
         entity: T,
         type: TypeReference<T>,
+        quorum: Int,
+        timeout: Duration? = null,
+        requestId: String? = null
+    ): Pair<T,Boolean>
+    suspend fun <T : CouchDbDocument> updateWithQuorum(
+        entity: T,
+        type: Class<T>,
         quorum: Int,
         timeout: Duration? = null,
         requestId: String? = null
@@ -954,6 +968,21 @@ class ClientImpl(
             requestId
         )
 
+    override suspend fun <T : CouchDbDocument> createWithQuorum(
+        entity: T,
+        clazz: Class<T>,
+        quorum: Int,
+        timeout: Duration?,
+        requestId: String?
+    ): Pair<T, Boolean> =
+        doCreateWith(
+            entity,
+            objectMapper.writerFor(clazz),
+            quorum,
+            timeout,
+            requestId
+        )
+
     private suspend fun <T : CouchDbDocument> doCreateWith(
         entity: T,
         writer: ObjectWriter,
@@ -1007,6 +1036,22 @@ class ClientImpl(
             entity,
             objectMapper.writerFor(type),
             type.type.typeName,
+            quorum,
+            timeout,
+            requestId
+        )
+
+    override suspend fun <T : CouchDbDocument> updateWithQuorum(
+        entity: T,
+        clazz: Class<T>,
+        quorum: Int,
+        timeout: Duration?,
+        requestId: String?
+    ): Pair<T, Boolean> =
+        doUpdateWith(
+            entity,
+            objectMapper.writerFor(clazz),
+            clazz.simpleName,
             quorum,
             timeout,
             requestId
