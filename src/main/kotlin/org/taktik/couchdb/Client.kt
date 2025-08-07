@@ -342,6 +342,15 @@ interface Client {
         timeout: Duration? = null,
         vararg options: Option
     ): T?
+    suspend fun <T : CouchDbDocument> getWithQuorum(
+        id: String,
+        clazz: Class<T>,
+        quorum: Int,
+        requestId: String? = null,
+        rev: String? = null,
+        timeout: Duration? = null,
+        vararg options: Option
+    ): T?
 
     suspend fun <T : CouchDbDocument> get(id: String, rev: String, clazz: Class<T>, vararg options: Option): T?
     suspend fun <T : CouchDbDocument> get(id: String, rev: String, type: TypeReference<T>, vararg options: Option): T?
@@ -767,6 +776,20 @@ class ClientImpl(
         val request = makeAndValidateRequest(id, rev, options, requestId = requestId, timeout = timeout, quorum = quorum)
 
         return request.getCouchDbResponse(type, nullIf404 = true)
+    }
+
+    override suspend fun <T : CouchDbDocument> getWithQuorum(
+        id: String,
+        clazz: Class<T>,
+        quorum: Int,
+        requestId: String?,
+        rev: String?,
+        timeout: Duration?,
+        vararg options: Option
+    ): T? {
+        val request = makeAndValidateRequest(id, rev, options, requestId = requestId, timeout = timeout, quorum = quorum)
+
+        return request.getCouchDbResponse(clazz, nullIf404 = true)
     }
 
     private fun makeAndValidateRequest(
