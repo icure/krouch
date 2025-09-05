@@ -1510,9 +1510,9 @@ class ClientImpl(
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
         )).addSinglePathComponent("_all_dbs").let {
-            if (startkey != null) it.param("startkey", startkey) else it
+            if (startkey != null) it.param("startkey", "\"$startkey\"") else it
         }.let {
-            if (endkey != null) it.param("endkey", endkey) else it
+            if (endkey != null) it.param("endkey", "\"$endkey\"") else it
         }
 
         coroutineScope {
