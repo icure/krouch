@@ -72,7 +72,7 @@ class CouchDbClientTests {
     private val databaseHost =  System.getProperty("krouch.test.couchdb.server.url", "http://localhost:5984")
     private val databaseName =  System.getProperty("krouch.test.couchdb.database.name", "krouch-test")
     private val userName = System.getProperty("krouch.test.couchdb.username", "admin")
-    private val password = System.getProperty("krouch.test.couchdb.password", "password")
+    private val password = System.getProperty("krouch.test.couchdb.password", "admin")
 
     private val testResponseAsString = URL("https://jsonplaceholder.typicode.com/posts").openStream().use { it.readBytes().toString(StandardCharsets.UTF_8) }
     private val httpClient = NettyWebClient()
@@ -786,13 +786,13 @@ class CouchDbClientTests {
             assertEquals(expectedResults, results.map { it.doc })
             assertTrue(last_seq.startsWith("14-"))
         }
-        val nextSince = client.getChanges<ChangeTestEntityA>("0", 6, "classname").run {
+        val nextSince = client.getChanges<ChangeTestEntityA>("0", 4, "classname").run {
             assertEquals(8, pending)
             assertEquals(expectedResults.take(4), results.map { it.doc })
-            assertTrue(last_seq.startsWith("6-"))
+            assertTrue(last_seq.startsWith("7-"))
             last_seq
         }
-        client.getChanges<ChangeTestEntityA>(nextSince, 6, "classname").run {
+        client.getChanges<ChangeTestEntityA>(nextSince, 4, "classname").run {
             // Not enough entities matching filter remaining to reach limit, consumes everything left
             assertEquals(0, pending)
             assertEquals(expectedResults.takeLast(2), results.map { it.doc })

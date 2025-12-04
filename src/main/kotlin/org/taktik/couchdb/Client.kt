@@ -66,14 +66,17 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.produceIn
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.mono
@@ -1669,7 +1672,8 @@ class ClientImpl(
                 .param("feed", "normal")
                 .param("include_docs", "true")
                 .param("since", since)
-                .param("filter", "_selector"),
+                .param("filter", "_selector")
+                .param("limit", limit.toString()),
             method = HttpMethod.POST,
             body = objectMapper.writeValueAsString(SelectorFilter(mapOf(classDiscriminator to discriminatorValue)))
         ).retrieveAndInjectRequestId(headerHandlers, timingHandler).toFlow().toObject(
