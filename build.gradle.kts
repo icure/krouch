@@ -1,6 +1,6 @@
 import com.github.jk1.license.render.CsvReportRenderer
 import com.github.jk1.license.render.ReportRenderer
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 /*
  *    Copyright 2020 Taktik SA
@@ -23,7 +23,7 @@ val repoUsername: String by project
 val repoPassword: String by project
 val mavenReleasesRepository: String by project
 
-val kotlinVersion = "1.9.25"
+val kotlinVersion = "2.2.21"
 val kotlinCoroutinesVersion = "1.8.1"
 val asyncHttpVersion = "0.2.23-g050f3d219b"
 val jacksonVersion = "2.19.1"
@@ -36,7 +36,8 @@ val reactorVersion = "3.7.7"
 val logbackVersion = "1.5.18"
 
 plugins {
-    kotlin("jvm") version "1.8.10"
+    kotlin("jvm") version "2.2.21"
+    `maven-publish`
     id("com.taktik.gradle.maven-repository") version "1.0.7"
     id("com.taktik.gradle.git-version") version "2.0.8-gb47b2d0e35"
     id("com.github.jk1.dependency-license-report") version "2.0"
@@ -46,41 +47,30 @@ licenseReport {
     renderers = arrayOf<ReportRenderer>(CsvReportRenderer())
 }
 
-buildscript {
-    repositories {
-        mavenLocal()
-        mavenCentral()
-        maven { url = uri("https://maven.taktik.be/content/groups/public") }
-    }
-    dependencies {
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.10")
-        classpath("org.jetbrains.kotlin:kotlin-allopen:1.8.10")
-        classpath("com.taktik.gradle:gradle-plugin-maven-repository:1.0.7")
-        classpath("com.taktik.gradle:gradle-plugin-git-version:2.0.8-gb47b2d0e35")
-    }
-}
-
 val gitVersion: String? by project
 group = "org.taktik.couchdb"
 version = gitVersion ?: "0.0.1-SNAPSHOT"
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
-apply(plugin = "kotlin")
-apply(plugin = "maven-publish")
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_21)
+        freeCompilerArgs.add("-Xjsr305=strict")
+    }
+}
 
 tasks.withType<Test> {
     useJUnitPlatform()
 }
 
-tasks.withType<KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs = listOf("-Xjsr305=strict")
-         jvmTarget = "17"
-    }
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven { url = uri("https://maven.taktik.be/content/groups/public") }
 }
 
 dependencies {
@@ -93,7 +83,7 @@ dependencies {
     implementation(group = "org.jetbrains.kotlin", name = "kotlin-reflect", version = kotlinVersion)
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = kotlinCoroutinesVersion)
     implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-reactor", version = kotlinCoroutinesVersion)
-    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.3.8")
+    implementation(group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable-jvm", version = "0.4.0")
 
     implementation(group = "org.slf4j", name = "slf4j-api", version = slf4jVersion)
     implementation(group = "commons-codec", name = "commons-codec", version = commonsCodecVersion)
