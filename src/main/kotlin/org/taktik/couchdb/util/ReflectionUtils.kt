@@ -55,7 +55,8 @@ fun eachMethod(clazz: Class<*>, p: Predicate<Method>): Collection<Method> {
 
 fun <T : Annotation> eachAnnotation(
         clazz: Class<*>,
-        annotationClass: Class<T>, p: Predicate<T>,
+        annotationClass: Class<T>,
+        p: Predicate<T>,
 ) {
     var a = clazz.getAnnotation(annotationClass)
 
