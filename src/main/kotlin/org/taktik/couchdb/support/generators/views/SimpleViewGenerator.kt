@@ -15,7 +15,7 @@
  *
  */
 
-package org.taktik.couchdb.support.generators
+package org.taktik.couchdb.support.generators.views
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.taktik.couchdb.annotation.View
@@ -24,34 +24,30 @@ import org.taktik.couchdb.util.Exceptions
 import org.taktik.couchdb.util.Predicate
 import org.taktik.couchdb.util.eachAnnotation
 import java.io.FileNotFoundException
+import org.taktik.couchdb.entity.View as CouchDbView
 
-/**
- *
- * @author Antoine Duchâteau, based on of Ektorp by henrik lundgren
- */
-class SimpleViewGenerator : ViewGenerator<Any> {
-
-	private fun View.fullName(baseId: String) = this.secondaryPartition.takeIf { it.isNotBlank() }?.let { "${baseId}-${it}/${this.name}" } ?: "${baseId}/${this.name}"
+object SimpleViewGenerator : ViewGenerator<Any> {
 
 	override fun generateViews(
 		repository: Any,
-		baseId: String,
-	): Map<String, org.taktik.couchdb.entity.View> {
-		val views = mutableMapOf<String, org.taktik.couchdb.entity.View>()
+		ddocEntityName: String,
+		partition: String?
+	): Map<ViewGenerator.ViewKey, CouchDbView> {
+		val views = mutableMapOf<ViewGenerator.ViewKey, CouchDbView>()
 		val repositoryClass: Class<*> = repository.javaClass
-		createDeclaredViews(views, repositoryClass, baseId)
+		createDeclaredViews(views, repositoryClass, ddocEntityName)
 		return views
 	}
 
 	private fun createDeclaredViews(
-		views: MutableMap<String, org.taktik.couchdb.entity.View>,
+		views: MutableMap<ViewGenerator.ViewKey, CouchDbView>,
 		klass: Class<*>,
-		baseId: String,
+		ddocEntityName: String,
 	) {
 		eachAnnotation(klass, Views::class.java, object : Predicate<Views> {
 			override fun apply(input: Views): Boolean {
 				for (v in input.value) {
-					addView(views, v, klass, baseId)
+					addView(views, v, klass, ddocEntityName)
 				}
 				return true
 			}
@@ -59,31 +55,36 @@ class SimpleViewGenerator : ViewGenerator<Any> {
 
 		eachAnnotation(klass, View::class.java, object : Predicate<View> {
 			override fun apply(input: View): Boolean {
-				addView(views, input, klass, baseId)
+				addView(views, input, klass, ddocEntityName)
 				return true
 			}
 		})
 	}
 
 	private fun addView(
-		views: MutableMap<String, org.taktik.couchdb.entity.View>,
+		views: MutableMap<ViewGenerator.ViewKey, CouchDbView>,
 		input: View,
 		repositoryClass: Class<*>,
-		baseId: String,
+		ddocEntityName: String,
 	) {
+		val viewKey = ViewGenerator.ViewKey(
+			ddocEntityName = ddocEntityName,
+			partition = input.secondaryPartition,
+			viewName = input.name
+		)
 		when {
 			input.obsolete -> return
 			input.file.isNotEmpty() -> {
-				views[input.fullName(baseId)] = loadViewFromFilePath(input, repositoryClass)
+				views[viewKey] = loadViewFromFilePath(input, repositoryClass)
 			}
 			shouldLoadFunctionFromClassPath(input.map) || shouldLoadFunctionFromClassPath(input.reduce) -> {
-				views[input.fullName(baseId)] = viewFromFilePath(input, repositoryClass)
+				views[viewKey] = viewFromFilePath(input, repositoryClass)
 			}
 			input.reduce.isNotEmpty() -> {
-				views[input.fullName(baseId)] = org.taktik.couchdb.entity.View(input.map, input.reduce)
+				views[viewKey] = CouchDbView(input.map, input.reduce)
 			}
 			else -> {
-				views[input.fullName(baseId)] = org.taktik.couchdb.entity.View(input.map)
+				views[viewKey] = CouchDbView(input.map)
 			}
 		}
 	}
@@ -95,7 +96,7 @@ class SimpleViewGenerator : ViewGenerator<Any> {
 	private fun viewFromFilePath(
 		input: View,
 		repositoryClass: Class<*>,
-	): org.taktik.couchdb.entity.View {
+	): CouchDbView {
 		val mapPath: String = input.map
 		val map: String = if (shouldLoadFunctionFromClassPath(mapPath)) {
 			loadResourceFromClasspath(repositoryClass, mapPath.substring(10))
@@ -109,7 +110,7 @@ class SimpleViewGenerator : ViewGenerator<Any> {
 		} else {
 			reducePath.ifEmpty { null }
 		}
-		return org.taktik.couchdb.entity.View(map, reduce)
+		return CouchDbView(map, reduce)
 	}
 
 	private fun loadResourceFromClasspath(
@@ -127,12 +128,12 @@ class SimpleViewGenerator : ViewGenerator<Any> {
 
 	private fun loadViewFromFilePath(
 		input: View, repositoryClass: Class<*>,
-	): org.taktik.couchdb.entity.View {
+	): CouchDbView {
 		return try {
 			val json = loadResourceFromClasspath(repositoryClass,
 				input.file)
 			ObjectMapper().readValue(json.replace("\n".toRegex(), ""),
-				org.taktik.couchdb.entity.View::class.java)
+				CouchDbView::class.java)
 		} catch (e: Exception) {
 			throw Exceptions.propagate(e)
 		}
