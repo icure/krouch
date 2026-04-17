@@ -25,9 +25,9 @@ import org.taktik.couchdb.entity.Attachment
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Code(
-        @JsonProperty("_id") override val id: String,         // id = type|code|version  => this must be unique
-        @JsonProperty("_rev") override val rev: String? = null,
-        @JsonProperty("deleted") val deletionDate: Long? = null,
+        @param:JsonProperty("_id") override val id: String,         // id = type|code|version  => this must be unique
+        @param:JsonProperty("_rev") override val rev: String? = null,
+        @param:JsonProperty("deleted") val deletionDate: Long? = null,
 
         val context: String? = null, //ex: When embedded the context where this code is used
         val type: String? = null, //ex: ICD (type + version + code combination must be unique) (or from tags -> CD-ITEM)
@@ -39,9 +39,9 @@ data class Code(
         val level: Int? = null, //ex: 0 = System, not to be modified by user, 1 = optional, created or modified by user
         val links: Set<String> = setOf(), //Links towards related codes (corresponds to an approximate link in qualifiedLinks)
 
-        @JsonProperty("_attachments") val attachments: Map<String, Attachment>? = null,
-        @JsonProperty("_conflicts") val conflicts: List<String>? = null,
-        @JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
+        @param:JsonProperty("_attachments") val attachments: Map<String, Attachment>? = null,
+        @param:JsonProperty("_conflicts") val conflicts: List<String>? = null,
+        @param:JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
 ) : CouchDbDocument {
     companion object {
         fun from(type: String, code: String, version: String) = Code(id = "$type:$code:$version", type = type, code = code, version = version)

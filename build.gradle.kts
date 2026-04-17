@@ -102,4 +102,5 @@ dependencies {
 
     testImplementation(group = "io.projectreactor", name = "reactor-tools", version = reactorVersion)
     testImplementation(group = "org.junit.jupiter", name = "junit-jupiter", version = "5.8.0")
+    testImplementation(group = "org.junit.platform", name = "junit-platform-launcher", version = "1.8.0")
 }

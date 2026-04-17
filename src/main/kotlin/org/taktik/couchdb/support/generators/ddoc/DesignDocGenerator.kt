@@ -26,6 +26,6 @@ abstract class DesignDocGenerator<T : Any> {
 		val partition: String?
 	) {
 		val couchDbId: String
-			get() = partition?.let { "_design/$entityName-$it" } ?: "_design/$entityName"
+			get() = partition?.takeIf { it.isNotBlank() }?.let { "_design/$entityName-$it" } ?: "_design/$entityName"
 	}
 }

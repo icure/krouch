@@ -37,7 +37,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -50,6 +49,9 @@ import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.taktik.couchdb.DockerSetupListener.Companion.couchDbPassword
+import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUrl
+import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUsername
 import org.taktik.couchdb.dao.CodeDAO
 import org.taktik.couchdb.entity.*
 import org.taktik.couchdb.exception.CouchDbConflictException
@@ -63,16 +65,17 @@ import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
 import java.util.*
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 
 @FlowPreview
 @ExperimentalCoroutinesApi
 class CouchDbClientTests {
     private val log = org.slf4j.LoggerFactory.getLogger(this::class.java)
 
-    private val databaseHost =  System.getProperty("krouch.test.couchdb.server.url", "http://localhost:5984")
-    private val databaseName =  System.getProperty("krouch.test.couchdb.database.name", "krouch-test")
-    private val userName = System.getProperty("krouch.test.couchdb.username", "admin")
-    private val password = System.getProperty("krouch.test.couchdb.password", "admin")
+    private val databaseHost = couchDbUrl
+    private val databaseName = System.getProperty("krouch.test.couchdb.database.name", "krouch-test")
+    private val userName = couchDbUsername
+    private val password = couchDbPassword
 
     private val testResponseAsString = URL("https://jsonplaceholder.typicode.com/posts").openStream().use { it.readBytes().toString(StandardCharsets.UTF_8) }
     private val httpClient = NettyWebClient()
@@ -95,8 +98,8 @@ class CouchDbClientTests {
                 client.create(8, 2)
             }
             try {
-                testDAO.createOrUpdateDesignDocuments(true, false)
-            } catch (e: Exception) {}
+                testDAO.createOrUpdateDesignDocuments(updateIfExists = true, useVersioning = false)
+            } catch (_: Exception) {}
         }
     }
 
@@ -216,7 +219,7 @@ class CouchDbClientTests {
         // Wait a bit before updating DB
         val codes = List(testSize) { Code.from("test", UUID.randomUUID().toString(), "test") }
         val createdCodes = codes.map {
-            delay(300)
+            delay(300.milliseconds)
             client.create(it)
         }
         val changes = deferredChanges.await()
@@ -239,10 +242,10 @@ class CouchDbClientTests {
         // Wait a bit before updating DB
         val codes = List(testSize) { Code.from("test", UUID.randomUUID().toString(), "test") }
         val createdCodes = codes.map {
-            delay(45000)
+            delay(45000.milliseconds)
             client.create(it)
         }
-        val changes = withTimeout(50000) { deferredChanges.await() }
+        val changes = withTimeout(50000.milliseconds) { deferredChanges.await() }
         assertEquals(createdCodes.size, changes.size)
         assertEquals(createdCodes.map { it.id }.toSet(), changes.map { it.id }.toSet())
         assertEquals(codes.map { it.code }.toSet(), changes.map { it.doc.code }.toSet())
@@ -263,7 +266,7 @@ class CouchDbClientTests {
 
         val users = List(testSize) { User(UUID.randomUUID().toString()) }.map { client.create(it) }
 
-        val changes = withTimeout(5000) { deferredChanges.await() }
+        val changes = withTimeout(5000.milliseconds) { deferredChanges.await() }
         assertTrue(changes.isNotEmpty())
     }
 
@@ -305,7 +308,7 @@ class CouchDbClientTests {
             password
         )
         client.create(1,1)
-        delay(1000L)
+        delay(1000L.milliseconds)
         assertTrue(client.destroyDatabase())
     }
 
@@ -325,8 +328,8 @@ class CouchDbClientTests {
     fun testRequestGetResponseBytesFlow() = runBlocking {
         val bytesFlow = httpClient.uri("https://jsonplaceholder.typicode.com/posts").method(HttpMethod.GET).retrieve().toBytesFlow()
 
-        val bytes = bytesFlow.fold(ByteBuffer.allocate(1000000), { acc, buffer -> acc.put(buffer) })
-        bytes.flip()
+        val bytes = bytesFlow.fold(ByteBuffer.allocate(1000000)) { acc, buffer -> acc.put(buffer) }
+	    bytes.flip()
         val responseAsString = StandardCharsets.UTF_8.decode(bytes).toString()
         assertEquals(testResponseAsString, responseAsString)
     }
@@ -334,8 +337,8 @@ class CouchDbClientTests {
     @Test
     fun testRequestGetText() = runBlocking {
         val charBuffers = httpClient.uri("https://jsonplaceholder.typicode.com/posts").method(HttpMethod.GET).retrieve().toTextFlow()
-        val chars = charBuffers.toList().fold(CharBuffer.allocate(1000000), { acc, buffer -> acc.put(buffer) })
-        chars.flip()
+        val chars = charBuffers.toList().fold(CharBuffer.allocate(1000000)) { acc, buffer -> acc.put(buffer) }
+	    chars.flip()
         assertEquals(testResponseAsString, chars.toString())
     }
 
@@ -343,7 +346,7 @@ class CouchDbClientTests {
     fun testRequestGetTextAndSplit() = runBlocking {
         val charBuffers = httpClient.uri("https://jsonplaceholder.typicode.com/posts").method(HttpMethod.GET).retrieve().toTextFlow()
         val split = charBuffers.split('\n')
-        val lines = split.map { it.fold(CharBuffer.allocate(100000), { acc, buffer -> acc.put(buffer) }).flip().toString() }.toList()
+        val lines = split.map { it.fold(CharBuffer.allocate(100000)) { acc, buffer -> acc.put(buffer) }.flip().toString() }.toList()
         assertEquals(testResponseAsString.split("\n"), lines)
     }
 
@@ -515,7 +518,7 @@ class CouchDbClientTests {
         assertNotNull(created.id)
         assertNotNull(created.rev)
         val deletedRev = client.delete(created)
-        assertNotEquals(created.rev, deletedRev)
+        assertNotEquals(created.rev, deletedRev.rev)
         assertNull(client.get<Code>(created.id))
     }
 
@@ -729,10 +732,10 @@ class CouchDbClientTests {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     data class ChangeTestEntityA(
-        @JsonProperty("_id") override val id: String,
+        @param:JsonProperty("_id") override val id: String,
         val data: String,
-        @JsonProperty("_rev") override val rev: String? = null,
-        @JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
+        @param:JsonProperty("_rev") override val rev: String? = null,
+        @param:JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
     ) : CouchDbDocument {
         var classname
             get() = this::class.qualifiedName
@@ -743,10 +746,10 @@ class CouchDbClientTests {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     data class ChangeTestEntityB(
-        @JsonProperty("_id") override val id: String,
+        @param:JsonProperty("_id") override val id: String,
         val data: Int,
-        @JsonProperty("_rev") override val rev: String? = null,
-        @JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
+        @param:JsonProperty("_rev") override val rev: String? = null,
+        @param:JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
     ) : CouchDbDocument {
         var classname
             get() = this::class.qualifiedName
