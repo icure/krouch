@@ -24,12 +24,18 @@ import org.taktik.couchdb.support.generators.views.SimpleViewGenerator
 import org.taktik.couchdb.support.generators.views.ViewGenerator
 import org.taktik.couchdb.support.generators.filters.DefaultFilterGenerator
 import org.taktik.couchdb.support.generators.filters.FilterGenerator
+import org.taktik.couchdb.support.generators.filters.NoOpFilterGenerator
 import org.taktik.couchdb.support.generators.handlers.DefaultUpdateHandlerGenerator
+import org.taktik.couchdb.support.generators.handlers.NoOpUpdateHandlerGenerator
 import org.taktik.couchdb.support.generators.handlers.UpdateHandlerGenerator
 import org.taktik.couchdb.support.generators.lists.DefaultListGenerator
 import org.taktik.couchdb.support.generators.lists.ListGenerator
+import org.taktik.couchdb.support.generators.lists.NoOpListGenerator
 import org.taktik.couchdb.support.generators.shows.DefaultShowGenerator
+import org.taktik.couchdb.support.generators.shows.NoOpShowGenerator
 import org.taktik.couchdb.support.generators.shows.ShowGenerator
+import org.taktik.couchdb.support.generators.views.RepositoryViewGenerator
+import org.taktik.couchdb.support.repositories.DesignDocRepository
 import org.taktik.couchdb.support.repositories.ExternalViewRepository
 
 /**
@@ -62,6 +68,17 @@ class DesignDocumentFactory<T : Any> private constructor(
 			filterGenerator = DefaultFilterGenerator(),
 			updateHandlerGenerator = DefaultUpdateHandlerGenerator(),
 			designDocGenerator = DefaultDesignDocGenerator(),
+		)
+
+		fun getDesignDocRepositoryDocumentFactory(
+			designDocGenerator: DesignDocGenerator<DesignDocRepository>
+		): DesignDocumentFactory<DesignDocRepository> = DesignDocumentFactory(
+			viewGenerator = RepositoryViewGenerator,
+			listGenerator = NoOpListGenerator(),
+			showGenerator = NoOpShowGenerator(),
+			filterGenerator = NoOpFilterGenerator(),
+			updateHandlerGenerator = NoOpUpdateHandlerGenerator(),
+			designDocGenerator = designDocGenerator
 		)
 	}
 

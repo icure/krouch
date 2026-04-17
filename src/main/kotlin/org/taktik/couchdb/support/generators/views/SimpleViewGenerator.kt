@@ -31,7 +31,6 @@ object SimpleViewGenerator : ViewGenerator<Any> {
 	override fun generateViews(
 		repository: Any,
 		ddocEntityName: String,
-		partition: String?
 	): Map<ViewGenerator.ViewKey, CouchDbView> {
 		val views = mutableMapOf<ViewGenerator.ViewKey, CouchDbView>()
 		val repositoryClass: Class<*> = repository.javaClass

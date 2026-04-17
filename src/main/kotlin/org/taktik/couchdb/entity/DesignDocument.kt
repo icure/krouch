@@ -25,9 +25,9 @@ import org.taktik.couchdb.CouchDbDocument
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class DesignDocument(
-        @JsonProperty("_id") override var id: String,
-        @JsonProperty("_rev") override var rev: String? = null,
-        @JsonProperty("rev_history") override val revHistory: Map<String, String> = mapOf(),
+        @param:JsonProperty("_id") override var id: String,
+        @param:JsonProperty("_rev") override var rev: String? = null,
+        @param:JsonProperty("rev_history") override val revHistory: Map<String, String> = mapOf(),
         val language: String? = null,
         val views: Map<String, View> = mapOf(),
         val lists: Map<String, String> = mapOf(),
@@ -75,7 +75,12 @@ data class DesignDocument(
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class View(val map: String, val reduce: String? = null) {
+data class View(
+    val map: String,
+    val reduce: String? = null,
+    val weight: Long? = null,
+    val affinity: List<String> = emptyList()
+) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
