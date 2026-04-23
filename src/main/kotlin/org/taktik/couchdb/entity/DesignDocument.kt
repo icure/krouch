@@ -77,8 +77,6 @@ data class DesignDocument(
 data class View(
     val map: String,
     val reduce: String? = null,
-    val weight: Long? = null,
-    val affinity: List<String> = emptyList()
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
