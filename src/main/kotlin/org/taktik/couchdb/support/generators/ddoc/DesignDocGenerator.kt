@@ -6,15 +6,20 @@ import org.taktik.couchdb.support.generators.views.ViewGenerator
 
 abstract class DesignDocGenerator<T : Any> {
 
-	protected abstract fun splitViews(views: Map<ViewGenerator.ViewKey, View>, metadataSource: T): Map<DesignDocId, Map<String, View>>
+	protected abstract fun splitViews(
+		entityName: String,
+		views: Map<ViewGenerator.ViewKey, View>,
+		metadataSource: T
+	): Map<DesignDocId, Map<String, View>>
 	protected abstract fun generateDdocName(ddocId: DesignDocId, metadataSource: T, views: List<View>, useVersioning: Boolean): String
 
 	fun splitViewsAndGenerateDesignDocs(
+		entityName: String,
 		views: Map<ViewGenerator.ViewKey, View>,
 		metadataSource: T,
 		useVersioning: Boolean,
 		initDdoc: (id: String, views: Map<String, View>) -> DesignDocument
-	): Set<DesignDocument> = splitViews(views, metadataSource).map { (ddocId, views) ->
+	): Set<DesignDocument> = splitViews(entityName, views, metadataSource).map { (ddocId, views) ->
 		initDdoc(
 			generateDdocName(ddocId, metadataSource, views.values.toList(), useVersioning),
 			views

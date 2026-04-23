@@ -34,19 +34,18 @@ object SimpleViewGenerator : ViewGenerator<Any> {
 	): Map<ViewGenerator.ViewKey, CouchDbView> {
 		val views = mutableMapOf<ViewGenerator.ViewKey, CouchDbView>()
 		val repositoryClass: Class<*> = repository.javaClass
-		createDeclaredViews(views, repositoryClass, ddocEntityName)
+		createDeclaredViews(views, repositoryClass)
 		return views
 	}
 
 	private fun createDeclaredViews(
 		views: MutableMap<ViewGenerator.ViewKey, CouchDbView>,
 		klass: Class<*>,
-		ddocEntityName: String,
 	) {
 		eachAnnotation(klass, Views::class.java, object : Predicate<Views> {
 			override fun apply(input: Views): Boolean {
 				for (v in input.value) {
-					addView(views, v, klass, ddocEntityName)
+					addView(views, v, klass)
 				}
 				return true
 			}
@@ -54,7 +53,7 @@ object SimpleViewGenerator : ViewGenerator<Any> {
 
 		eachAnnotation(klass, View::class.java, object : Predicate<View> {
 			override fun apply(input: View): Boolean {
-				addView(views, input, klass, ddocEntityName)
+				addView(views, input, klass)
 				return true
 			}
 		})
@@ -64,10 +63,8 @@ object SimpleViewGenerator : ViewGenerator<Any> {
 		views: MutableMap<ViewGenerator.ViewKey, CouchDbView>,
 		input: View,
 		repositoryClass: Class<*>,
-		ddocEntityName: String,
 	) {
 		val viewKey = ViewGenerator.ViewKey(
-			ddocEntityName = ddocEntityName,
 			partition = input.secondaryPartition,
 			viewName = input.name
 		)

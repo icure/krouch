@@ -105,6 +105,7 @@ class DesignDocumentFactory<T : Any> private constructor(
 		)
 
 		return designDocGenerator.splitViewsAndGenerateDesignDocs(
+			entityName = designDocEntityName,
 			views = views,
 			metadataSource = metaDataSource,
 			useVersioning = useVersioning

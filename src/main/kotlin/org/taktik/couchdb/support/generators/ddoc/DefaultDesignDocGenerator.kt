@@ -9,8 +9,12 @@ class DefaultDesignDocGenerator<T : Any> : DesignDocGenerator<T>() {
 	private fun createViewVersionHash(views: List<View>): String =
 		DigestUtils.sha256Hex(views.sortedBy { it.map }.joinToString { it.toString() }).substring(0, 4)
 
-	override fun splitViews(views: Map<ViewGenerator.ViewKey, View>, metadataSource: T): Map<DesignDocId, Map<String, View>> =
-		views.toList().groupBy { (k,_) -> DesignDocId(k.ddocEntityName, k.partition) }.mapValues { (_, v) ->
+	override fun splitViews(
+		entityName: String,
+		views: Map<ViewGenerator.ViewKey, View>,
+		metadataSource: T
+	): Map<DesignDocId, Map<String, View>> =
+		views.toList().groupBy { (k,_) -> DesignDocId(entityName, k.partition) }.mapValues { (_, v) ->
 			v.associateTo(LinkedHashMap()) {
 				it.first.viewName to it.second
 			}

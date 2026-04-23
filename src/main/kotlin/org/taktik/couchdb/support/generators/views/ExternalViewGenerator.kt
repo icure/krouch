@@ -11,7 +11,6 @@ object ExternalViewGenerator : ViewGenerator<ExternalViewRepository> {
 	): Map<ViewGenerator.ViewKey, View> =
 		repository.views.mapKeys { (k, _) ->
 			ViewGenerator.ViewKey(
-				ddocEntityName = ddocEntityName,
 				partition = repository.secondaryPartition,
 				viewName = k
 			)
