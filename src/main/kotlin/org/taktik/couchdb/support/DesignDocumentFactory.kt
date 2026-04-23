@@ -34,14 +34,8 @@ import org.taktik.couchdb.support.generators.lists.NoOpListGenerator
 import org.taktik.couchdb.support.generators.shows.DefaultShowGenerator
 import org.taktik.couchdb.support.generators.shows.NoOpShowGenerator
 import org.taktik.couchdb.support.generators.shows.ShowGenerator
-import org.taktik.couchdb.support.generators.views.RepositoryViewGenerator
-import org.taktik.couchdb.support.repositories.DesignDocRepository
 import org.taktik.couchdb.support.repositories.ExternalViewRepository
 
-/**
- *
- * @author Antoine Duchâteau, based on of Ektorp by henrik lundgren
- */
 class DesignDocumentFactory<T : Any> private constructor(
 	private val viewGenerator: ViewGenerator<T>,
 	private val listGenerator: ListGenerator<T>,
@@ -70,10 +64,11 @@ class DesignDocumentFactory<T : Any> private constructor(
 			designDocGenerator = DefaultDesignDocGenerator(),
 		)
 
-		fun getDesignDocRepositoryDocumentFactory(
-			designDocGenerator: DesignDocGenerator<DesignDocRepository>
-		): DesignDocumentFactory<DesignDocRepository> = DesignDocumentFactory(
-			viewGenerator = RepositoryViewGenerator,
+		fun <T: Any> getDesignDocumentFactoryWith(
+			viewGenerator: ViewGenerator<T>,
+			designDocGenerator: DesignDocGenerator<T>
+		): DesignDocumentFactory<T> = DesignDocumentFactory(
+			viewGenerator = viewGenerator,
 			listGenerator = NoOpListGenerator(),
 			showGenerator = NoOpShowGenerator(),
 			filterGenerator = NoOpFilterGenerator(),

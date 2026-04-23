@@ -25,14 +25,13 @@ import org.taktik.couchdb.CouchDbDocument
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class User(
-        @JsonProperty("_id") override val id: String,
-        @JsonProperty("_rev") override val rev: String? = null,
-        @JsonProperty("rev_history") override val revHistory: Map<String, String> = mapOf(),
-        val name: String? = null,
-        val password: String? = null,
-        val roles: List<String> = listOf()
+	@param:JsonProperty("_id") override val id: String,
+	@param:JsonProperty("_rev") override val rev: String? = null,
+	val name: String? = null,
+	val password: String? = null,
+	val roles: List<String> = listOf()
 ) : CouchDbDocument {
-    val type: String = "user"
+	val type: String = "user"
 
-    override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
+	override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
 }

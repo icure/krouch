@@ -27,7 +27,6 @@ import org.taktik.couchdb.CouchDbDocument
 data class DesignDocument(
         @param:JsonProperty("_id") override var id: String,
         @param:JsonProperty("_rev") override var rev: String? = null,
-        @param:JsonProperty("rev_history") override val revHistory: Map<String, String> = mapOf(),
         val language: String? = null,
         val views: Map<String, View> = mapOf(),
         val lists: Map<String, String> = mapOf(),
