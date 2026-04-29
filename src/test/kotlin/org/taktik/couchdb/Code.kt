@@ -25,34 +25,33 @@ import org.taktik.couchdb.entity.Attachment
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Code(
-        @param:JsonProperty("_id") override val id: String,         // id = type|code|version  => this must be unique
-        @param:JsonProperty("_rev") override val rev: String? = null,
-        @param:JsonProperty("deleted") val deletionDate: Long? = null,
+	@param:JsonProperty("_id") override val id: String,         // id = type|code|version  => this must be unique
+	@param:JsonProperty("_rev") override val rev: String? = null,
+	@param:JsonProperty("deleted") val deletionDate: Long? = null,
 
-        val context: String? = null, //ex: When embedded the context where this code is used
-        val type: String? = null, //ex: ICD (type + version + code combination must be unique) (or from tags -> CD-ITEM)
-        val code: String? = null, //ex: I06.2 (or from tags -> healthcareelement). Local codes are encoded as LOCAL:SLLOCALFROMMYSOFT
-        val version: String? = null, //ex: 10. Must be lexicographically searchable
-        val label: Map<String, String> = mapOf(), //ex: {en: Rheumatic Aortic Stenosis, fr: Sténose rhumatoïde de l'Aorte}
-        val author: String? = null,
-        val regions: Set<String> = setOf(), //ex: be,fr
-        val level: Int? = null, //ex: 0 = System, not to be modified by user, 1 = optional, created or modified by user
-        val links: Set<String> = setOf(), //Links towards related codes (corresponds to an approximate link in qualifiedLinks)
+	val context: String? = null, //ex: When embedded the context where this code is used
+	val type: String? = null, //ex: ICD (type + version + code combination must be unique) (or from tags -> CD-ITEM)
+	val code: String? = null, //ex: I06.2 (or from tags -> healthcareelement). Local codes are encoded as LOCAL:SLLOCALFROMMYSOFT
+	val version: String? = null, //ex: 10. Must be lexicographically searchable
+	val label: Map<String, String> = mapOf(), //ex: {en: Rheumatic Aortic Stenosis, fr: Sténose rhumatoïde de l'Aorte}
+	val author: String? = null,
+	val regions: Set<String> = setOf(), //ex: be,fr
+	val level: Int? = null, //ex: 0 = System, not to be modified by user, 1 = optional, created or modified by user
+	val links: Set<String> = setOf(), //Links towards related codes (corresponds to an approximate link in qualifiedLinks)
 
-        @param:JsonProperty("_attachments") val attachments: Map<String, Attachment>? = null,
-        @param:JsonProperty("_conflicts") val conflicts: List<String>? = null,
-        @param:JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
+	@param:JsonProperty("_attachments") val attachments: Map<String, Attachment>? = null,
+	@param:JsonProperty("_conflicts") val conflicts: List<String>? = null,
 ) : CouchDbDocument {
-    companion object {
-        fun from(type: String, code: String, version: String) = Code(id = "$type:$code:$version", type = type, code = code, version = version)
-    }
-    override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
+	companion object {
+		fun from(type: String, code: String, version: String) = Code(id = "$type:$code:$version", type = type, code = code, version = version)
+	}
+	override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
 
-    @JsonProperty("java_type")
-    fun getJavaType(): String = "Code"
+	@JsonProperty("java_type")
+	fun getJavaType(): String = "Code"
 
-    @JsonProperty("java_type")
-    fun setJavaType(value: String) {
-        if ("Code" != value) throw DeserializationTypeException(this.id)
-    }
+	@JsonProperty("java_type")
+	fun setJavaType(value: String) {
+		if ("Code" != value) throw DeserializationTypeException(this.id)
+	}
 }

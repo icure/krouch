@@ -20,79 +20,91 @@ package org.taktik.couchdb.entity
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.taktik.couchdb.CouchDbDocument
+import org.taktik.couchdb.handlers.DesignDocumentDeserializer
+import org.taktik.couchdb.handlers.DesignDocumentSerializer
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonSerialize(using = DesignDocumentSerializer::class)
+@JsonDeserialize(using = DesignDocumentDeserializer::class)
 data class DesignDocument(
-        @param:JsonProperty("_id") override var id: String,
-        @param:JsonProperty("_rev") override var rev: String? = null,
-        val language: String? = null,
-        val views: Map<String, View> = mapOf(),
-        val lists: Map<String, String> = mapOf(),
-        val shows: Map<String, String> = mapOf(),
-        val updateHandlers: Map<String, String>? = null,
-        val filters: Map<String, String> = mapOf()
+	@param:JsonProperty("_id") override var id: String,
+	@param:JsonProperty("_rev") override var rev: String? = null,
+	val language: String? = null,
+	val views: Map<String, View> = mapOf(),
+	val lib: Map<String, String> = mapOf(),
+	val lists: Map<String, String> = mapOf(),
+	val shows: Map<String, String> = mapOf(),
+	val updateHandlers: Map<String, String>? = null,
+	val filters: Map<String, String> = mapOf()
 ) : CouchDbDocument {
-    override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
 
-    fun mergeWith(dd: DesignDocument, forceUpdate: Boolean): Pair<DesignDocument, Boolean> {
-        var changed = false
-        return (((((
-                mergeViews(dd.views, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(views = it)
-                } ?: dd)
-                .mergeFunctions(lists, dd.lists, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(lists = it)
-                } ?: dd)
-                .mergeFunctions(shows, dd.shows, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(shows = it)
-                } ?: dd)
-                .mergeFunctions(filters, dd.filters, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(filters = it)
-                } ?: dd)
-                .mergeFunctions(updateHandlers, dd.updateHandlers, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(updateHandlers = it)
-        } ?: dd) to changed
-    }
+	companion object {
+		const val LIB_VIEW_KEY = "lib"
+	}
 
-    private fun mergeFunctions(existing: Map<String, String>?, mergeFunctions: Map<String, String>?, updateOnDiff: Boolean) =
-            (mergeFunctions ?: mapOf()).entries.fold(null as Map<String, String>?) { res, (name, func) ->
-                if (existing == null || !existing.containsKey(name) || (updateOnDiff && existing[name] != func)) (existing ?: mapOf()) + (name to func) else res
-            }
+	override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
 
-    private fun mergeViews(mergeViews: Map<String, View>, updateOnDiff: Boolean) =
-            mergeViews.entries.fold(null as Map<String, View>?) { res, (name, view) ->
-                if (!views.containsKey(name) || (updateOnDiff && (views[name] != view))) views + (name to view) else res
-            }
+	fun mergeWith(dd: DesignDocument, forceUpdate: Boolean): Pair<DesignDocument, Boolean> {
+		var changed = false
+		return (((((
+			mergeViews(dd.views, forceUpdate)?.let {
+				changed = true
+				dd.copy(views = it)
+			} ?: dd)
+			.mergeFunctions(lists, dd.lists, forceUpdate)?.let {
+				changed = true
+				dd.copy(lists = it)
+			} ?: dd)
+			.mergeFunctions(shows, dd.shows, forceUpdate)?.let {
+				changed = true
+				dd.copy(shows = it)
+			} ?: dd)
+			.mergeFunctions(filters, dd.filters, forceUpdate)?.let {
+				changed = true
+				dd.copy(filters = it)
+			} ?: dd)
+			.mergeFunctions(updateHandlers, dd.updateHandlers, forceUpdate)?.let {
+				changed = true
+				dd.copy(updateHandlers = it)
+			} ?: dd) to changed
+	}
+
+	private fun mergeFunctions(existing: Map<String, String>?, mergeFunctions: Map<String, String>?, updateOnDiff: Boolean) =
+		(mergeFunctions ?: mapOf()).entries.fold(null as Map<String, String>?) { res, (name, func) ->
+			if (existing == null || !existing.containsKey(name) || (updateOnDiff && existing[name] != func)) (existing ?: mapOf()) + (name to func) else res
+		}
+
+	private fun mergeViews(mergeViews: Map<String, View>, updateOnDiff: Boolean) =
+		mergeViews.entries.fold(null as Map<String, View>?) { res, (name, view) ->
+			if (!views.containsKey(name) || (updateOnDiff && (views[name] != view))) views + (name to view) else res
+		}
 }
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class View(
-    val map: String,
-    val reduce: String? = null,
+	val map: String,
+	val reduce: String? = null,
 ) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (javaClass != other?.javaClass) return false
 
-        other as View
+		other as View
 
-        if (normalize(map) != normalize(other.map)) return false
-        return reduce == other.reduce
-    }
+		if (normalize(map) != normalize(other.map)) return false
+		return reduce == other.reduce
+	}
 
-    private fun normalize(map: String) = map.replace("^map *= *function *".toRegex(), "function").replace("[ \t\n\r;]*$".toRegex(), "").replace("[\n\r][ \t]*".toRegex(), "\n")
+	private fun normalize(map: String) = map.replace("^map *= *function *".toRegex(), "function").replace("[ \t\n\r;]*$".toRegex(), "").replace("[\n\r][ \t]*".toRegex(), "\n")
 
-    override fun hashCode(): Int {
-        var result = map.replace("^map *= *function".toRegex(), "function").hashCode()
-        result = 31 * result + (reduce?.hashCode() ?: 0)
-        return result
-    }
+	override fun hashCode(): Int {
+		var result = map.replace("^map *= *function".toRegex(), "function").hashCode()
+		result = 31 * result + (reduce?.hashCode() ?: 0)
+		return result
+	}
 }

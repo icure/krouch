@@ -15,7 +15,7 @@ internal class ReflectionUtilsKtTest {
     fun eachField() {
         val codeFields = eachField(Code::class.java, object : Predicate<Field> {
             override fun apply(input: Field): Boolean {
-                return input.name === "id" || input.name === "deletionDate" || input.name === "attachments" || input.name === "conflicts" || input.name === "revHistory" || input.name === "rev"
+                return input.name === "id" || input.name === "deletionDate" || input.name === "attachments" || input.name === "conflicts" || input.name === "rev"
             }
         })
 

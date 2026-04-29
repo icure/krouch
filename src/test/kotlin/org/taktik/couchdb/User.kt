@@ -40,7 +40,6 @@ data class User(
 
 	@param:JsonProperty("_attachments") val attachments: Map<String, Attachment>? = emptyMap(),
 	@param:JsonProperty("_conflicts") val conflicts: List<String>? = emptyList(),
-	@param:JsonProperty("rev_history") override val revHistory : Map<String, String>? = emptyMap(),
 ) : CouchDbDocument, Cloneable, Serializable {
 	override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
 

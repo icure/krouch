@@ -28,6 +28,8 @@ import org.taktik.couchdb.support.generators.filters.NoOpFilterGenerator
 import org.taktik.couchdb.support.generators.handlers.DefaultUpdateHandlerGenerator
 import org.taktik.couchdb.support.generators.handlers.NoOpUpdateHandlerGenerator
 import org.taktik.couchdb.support.generators.handlers.UpdateHandlerGenerator
+import org.taktik.couchdb.support.generators.lib.LibGenerator
+import org.taktik.couchdb.support.generators.lib.NoOpLibGenerator
 import org.taktik.couchdb.support.generators.lists.DefaultListGenerator
 import org.taktik.couchdb.support.generators.lists.ListGenerator
 import org.taktik.couchdb.support.generators.lists.NoOpListGenerator
@@ -38,6 +40,7 @@ import org.taktik.couchdb.support.repositories.ExternalViewRepository
 
 class DesignDocumentFactory<T : Any> private constructor(
 	private val viewGenerator: ViewGenerator<T>,
+	private val libGenerator: LibGenerator<T>,
 	private val listGenerator: ListGenerator<T>,
 	private val showGenerator: ShowGenerator<T>,
 	private val filterGenerator: FilterGenerator<T>,
@@ -48,6 +51,7 @@ class DesignDocumentFactory<T : Any> private constructor(
 	companion object {
 		fun getExternalDesignDocumentFactory(): DesignDocumentFactory<ExternalViewRepository> = DesignDocumentFactory(
 			viewGenerator = ExternalViewGenerator,
+			libGenerator = NoOpLibGenerator(),
 			listGenerator = DefaultListGenerator(),
 			showGenerator = DefaultShowGenerator(),
 			filterGenerator = DefaultFilterGenerator(),
@@ -57,6 +61,7 @@ class DesignDocumentFactory<T : Any> private constructor(
 
 		fun getStdDesignDocumentFactory(): DesignDocumentFactory<Any> = DesignDocumentFactory(
 			viewGenerator = SimpleViewGenerator,
+			libGenerator = NoOpLibGenerator(),
 			listGenerator = DefaultListGenerator(),
 			showGenerator = DefaultShowGenerator(),
 			filterGenerator = DefaultFilterGenerator(),
@@ -66,9 +71,11 @@ class DesignDocumentFactory<T : Any> private constructor(
 
 		fun <T: Any> getDesignDocumentFactoryWith(
 			viewGenerator: ViewGenerator<T>,
+			libGenerator: LibGenerator<T>,
 			designDocGenerator: DesignDocGenerator<T>
 		): DesignDocumentFactory<T> = DesignDocumentFactory(
 			viewGenerator = viewGenerator,
+			libGenerator = libGenerator,
 			listGenerator = NoOpListGenerator(),
 			showGenerator = NoOpShowGenerator(),
 			filterGenerator = NoOpFilterGenerator(),
@@ -113,6 +120,7 @@ class DesignDocumentFactory<T : Any> private constructor(
 			DesignDocument(
 				id = id,
 				views = generatedViews,
+				lib = libGenerator.generateLibResources(metaDataSource),
 				lists = listGenerator.generateListFunctions(metaDataSource),
 				shows = showGenerator.generateShowFunctions(metaDataSource),
 				filters = filterGenerator.generateFilterFunctions(metaDataSource),
