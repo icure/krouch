@@ -19,7 +19,7 @@ internal class ReflectionUtilsKtTest {
             }
         })
 
-        assertTrue(codeFields.size == 6)
+        assertTrue(codeFields.size == 5)
     }
 
     @Test

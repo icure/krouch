@@ -18,10 +18,11 @@ abstract class DesignDocGenerator<T : Any> {
 		views: Map<ViewGenerator.ViewKey, View>,
 		metadataSource: T,
 		useVersioning: Boolean,
-		initDdoc: (id: String, views: Map<String, View>) -> DesignDocument
+		initDdoc: (id: String, partition: String?, views: Map<String, View>) -> DesignDocument
 	): Set<DesignDocument> = splitViews(entityName, views, metadataSource).map { (ddocId, views) ->
 		initDdoc(
 			generateDdocName(ddocId, metadataSource, views.values.toList(), useVersioning),
+			ddocId.partition,
 			views
 		)
 	}.toSet()

@@ -116,11 +116,11 @@ class DesignDocumentFactory<T : Any> private constructor(
 			views = views,
 			metadataSource = metaDataSource,
 			useVersioning = useVersioning
-		) { id, generatedViews ->
+		) { id, partition, generatedViews ->
 			DesignDocument(
 				id = id,
 				views = generatedViews,
-				lib = libGenerator.generateLibResources(metaDataSource),
+				lib = libGenerator.generateLibResources(partition, metaDataSource),
 				lists = listGenerator.generateListFunctions(metaDataSource),
 				shows = showGenerator.generateShowFunctions(metaDataSource),
 				filters = filterGenerator.generateFilterFunctions(metaDataSource),
