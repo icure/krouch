@@ -98,6 +98,7 @@ data class View(val map: String, val reduce: String? = null) {
         .replace(" == ", " === ")
         .replace("\\s([)}\\]])".toRegex(), "$1")
 
+
     override fun hashCode(): Int {
         var result = normalizedMap.hashCode()
         result = 31 * result + (reduce?.hashCode() ?: 0)
