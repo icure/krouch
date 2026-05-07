@@ -96,6 +96,7 @@ data class View(val map: String, val reduce: String? = null) {
         .replace("[\n\r][ \t]*".toRegex(), "\n")
         .replace("\\s+".toRegex(), " ")
         .replace(" == ", " === ")
+        .replace("\\s([)}\\]])".toRegex(), "$1")
 
     override fun hashCode(): Int {
         var result = normalizedMap.hashCode()
