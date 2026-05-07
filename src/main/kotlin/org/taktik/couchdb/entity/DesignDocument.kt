@@ -20,6 +20,7 @@ package org.taktik.couchdb.entity
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
+import org.apache.commons.codec.digest.DigestUtils
 import org.taktik.couchdb.CouchDbDocument
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -76,20 +77,28 @@ data class DesignDocument(
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class View(val map: String, val reduce: String? = null) {
+    val normalizedMap: String by lazy { normalize(map) }
+    val sha: String by lazy { DigestUtils.sha256Hex(normalizedMap + (reduce?.let { "_$it" } ?: ""))  }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
         other as View
 
-        if (normalize(map) != normalize(other.map)) return false
+        if (normalizedMap != other.normalizedMap) return false
         return reduce == other.reduce
     }
 
-    private fun normalize(map: String) = map.replace("^map *= *function *".toRegex(), "function").replace("[ \t\n\r;]*$".toRegex(), "").replace("[\n\r][ \t]*".toRegex(), "\n")
+    private fun normalize(map: String) = map
+        .replace("^map\\s*=\\s*function\\s*".toRegex(), "function")
+        .replace("[ \t\n\r;]*$".toRegex(), "")
+        .replace("[\n\r][ \t]*".toRegex(), "\n")
+        .replace("\\s+".toRegex(), " ")
+        .replace(" == ", " === ")
 
     override fun hashCode(): Int {
-        var result = map.replace("^map *= *function".toRegex(), "function").hashCode()
+        var result = normalizedMap.hashCode()
         result = 31 * result + (reduce?.hashCode() ?: 0)
         return result
     }
