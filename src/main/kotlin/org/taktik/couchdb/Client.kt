@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectWriter
 import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
@@ -55,6 +56,8 @@ import io.netty.handler.codec.http.HttpHeaderNames
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -63,19 +66,25 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.produceIn
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.mono
 import org.slf4j.LoggerFactory
 import org.taktik.couchdb.entity.ActiveTask
 import org.taktik.couchdb.entity.AttachmentResult
 import org.taktik.couchdb.entity.Change
+import org.taktik.couchdb.entity.ChangesChunk
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
 import org.taktik.couchdb.entity.DesignDocumentResult
 import org.taktik.couchdb.entity.EntityExceptionBehaviour
@@ -86,6 +95,7 @@ import org.taktik.couchdb.entity.ReplicateCommand
 import org.taktik.couchdb.entity.ReplicatorDocument
 import org.taktik.couchdb.entity.Scheduler
 import org.taktik.couchdb.entity.Security
+import org.taktik.couchdb.entity.ShardInfo
 import org.taktik.couchdb.entity.Versionable
 import org.taktik.couchdb.entity.ViewQuery
 import org.taktik.couchdb.exception.CouchDbConflictException
@@ -97,11 +107,13 @@ import org.taktik.couchdb.mango.MangoResultException
 import org.taktik.couchdb.util.appendDocumentOrDesignDocId
 import org.taktik.couchdb.util.bufferedChunks
 import reactor.core.publisher.Mono
+import java.io.Serializable
 import java.lang.reflect.Type
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.max
 import kotlin.math.min
 
@@ -235,14 +247,41 @@ inline fun <reified T> Client.queryMango(query: MangoQuery<T>): Flow<MangoQueryR
 suspend inline fun <reified T : CouchDbDocument> Client.get(id: String): T? =
     this.get(id, object : TypeReference<T>() {})
 
+suspend inline fun <reified T : CouchDbDocument> Client.getWithQuorum(
+    id: String,
+    quorum: Int,
+    requestId: String? = null,
+    rev: String? = null,
+    timeout: Duration? = null,
+    vararg options: Option
+): T? =
+    this.getWithQuorum(id, object : TypeReference<T>() {}, quorum, requestId, rev, timeout, *options)
+
 inline fun <reified T : CouchDbDocument> Client.get(ids: List<String>, onEntityException: EntityExceptionBehaviour = EntityExceptionBehaviour.Fail): Flow<T> = this.get(ids, T::class.java, null, onEntityException)
 
 suspend inline fun <reified T : CouchDbDocument> Client.create(entity: T): T = this.create(entity, T::class.java)
 
+suspend inline fun <reified T : CouchDbDocument> Client.createWithQuorum(entity: T, quorum: Int, timeout: Duration? = null, requestId: String? = null): Pair<T, Boolean> = this.createWithQuorum(entity, object : TypeReference<T>() {}, quorum, timeout, requestId)
+
 suspend inline fun <reified T : CouchDbDocument> Client.update(entity: T): T = this.update(entity, T::class.java)
+
+suspend inline fun <reified T : CouchDbDocument> Client.updateWithQuorum(entity: T, quorum: Int, timeout: Duration? = null, requestId: String? = null): Pair<T, Boolean> = this.updateWithQuorum(entity, object : TypeReference<T>() {}, quorum, timeout, requestId)
 
 inline fun <reified T : CouchDbDocument> Client.bulkUpdate(entities: List<T>): Flow<BulkUpdateResult> =
     this.bulkUpdate(entities, T::class.java)
+
+suspend inline fun <reified T : CouchDbDocument> Client.getChanges(
+    since: String,
+    limit: Int,
+    classDiscriminator: String,
+    discriminatorValue: String? = null
+) = getChanges(
+    object : TypeReference<ChangesChunk<T>>() {},
+    since,
+    limit,
+    classDiscriminator,
+    discriminatorValue ?: requireNotNull(T::class.qualifiedName) { "Class ${T::class} has no qualified name, provide discriminator value explicitly." }
+)
 
 inline fun <reified T : CouchDbDocument> Client.subscribeForChanges(
     classDiscriminator: String,
@@ -270,6 +309,13 @@ interface Client {
 
     // Check if db exists
     suspend fun exists(): Boolean
+
+    /**
+     * Get the shard info of the database. This information is cached indefinitely, refreshed only when called with
+     * [ignoreCache] true.
+     */
+    suspend fun shards(ignoreCache: Boolean = false): ShardInfo
+
     suspend fun destroyDatabase(): Boolean
 
     // CRUD methods
@@ -279,6 +325,33 @@ interface Client {
         id: String,
         type: TypeReference<T>,
         requestId: String,
+        vararg options: Option
+    ): T?
+    /**
+     * Get an entity from at least [quorum] nodes before returning.
+     * The quorum is coerced at most to the number of "active" nodes (not down, not in maintenance mode). A node being
+     * down (or in maintenance mode) doesn't impact this method.
+     * If a node is reporting itself as up but is unresponsive and the system has to get a response from that node
+     * to reach the quorum then the request will timeout.
+     *
+     * For more info http://events17.linuxfoundation.org/sites/events/files/slides/ABDE_mike_wallace_couchdb_awkward_bits.pdf
+     */
+    suspend fun <T : CouchDbDocument> getWithQuorum(
+        id: String,
+        type: TypeReference<T>,
+        quorum: Int,
+        requestId: String? = null,
+        rev: String? = null,
+        timeout: Duration? = null,
+        vararg options: Option
+    ): T?
+    suspend fun <T : CouchDbDocument> getWithQuorum(
+        id: String,
+        clazz: Class<T>,
+        quorum: Int,
+        requestId: String? = null,
+        rev: String? = null,
+        timeout: Duration? = null,
         vararg options: Option
     ): T?
 
@@ -337,6 +410,55 @@ interface Client {
     suspend fun deleteAttachment(id: String, attachmentId: String, rev: String, requestId: String? = null): String
     suspend fun <T : CouchDbDocument> create(entity: T, clazz: Class<T>, requestId: String? = null): T
     suspend fun <T : CouchDbDocument> update(entity: T, clazz: Class<T>, requestId: String? = null): T
+
+    /**
+     * Creates an entity using a quorum for the request, and returns a pair of the entity with the updated revision and
+     * if the quorum was reached or not.
+     * If the quorum of the request is greater than the number of active nodes then the second item of the pair will be
+     * false.
+     * If the quorum is not reached within a timeout but at least one write was successful then again the second item
+     * will be false.
+     * If all nodes responded within the time then the second item will be true.
+     *
+     * # Timeout
+     * [timeoutMs] is the max time to wait for a response before giving up.
+     * If a node is unresponsive and the quorum requires a response from all nodes then the couchdb request would wait
+     * until the fabric timeout is reached on that node, which could be very long.
+     * Currently couchdb doesn't support a configuration of the timeout on a per-request basis, so this timeout is
+     * only applied to the client
+     * Note that if the timeout is reached the document might have already been created on some nodes.
+     */
+    suspend fun <T : CouchDbDocument> createWithQuorum(
+        entity: T,
+        type: TypeReference<T>,
+        quorum: Int,
+        timeout: Duration? = null,
+        requestId: String? = null
+    ): Pair<T,Boolean>
+    suspend fun <T : CouchDbDocument> createWithQuorum(
+        entity: T,
+        type: Class<T>,
+        quorum: Int,
+        timeout: Duration? = null,
+        requestId: String? = null
+    ): Pair<T,Boolean>
+    /**
+     * Same as [createWithQuorum] but for already existing entities
+     */
+    suspend fun <T : CouchDbDocument> updateWithQuorum(
+        entity: T,
+        type: TypeReference<T>,
+        quorum: Int,
+        timeout: Duration? = null,
+        requestId: String? = null
+    ): Pair<T,Boolean>
+    suspend fun <T : CouchDbDocument> updateWithQuorum(
+        entity: T,
+        type: Class<T>,
+        quorum: Int,
+        timeout: Duration? = null,
+        requestId: String? = null
+    ): Pair<T,Boolean>
     fun <T : CouchDbDocument> bulkUpdate(
         entities: Collection<T>,
         clazz: Class<T>,
@@ -361,7 +483,26 @@ interface Client {
 
     fun <T> mangoQuery(query: MangoQuery<T>, docType: Class<T>): Flow<ViewQueryResultEvent>
 
+    /**
+     * @param since Start giving changes from since, excluded. Can be "0" (from the start), "now" (returns just the
+     * next last_seq and no entries), or a previous [ChangesChunk.last_seq].
+     * @param limit maximum number of entities to return in the chunk. Note that this limit applies after the filtering:
+     * couchdb may analyze more changes than [limit] to find enough entries to satisfy it.
+     * @param classDiscriminator property on the entity that contains the class canonical name
+     * @param discriminatorValue value for entities of type T in [classDiscriminator]
+     */
     // Changes observing
+    suspend fun <T : CouchDbDocument> getChanges(
+        typeReference: TypeReference<ChangesChunk<T>>,
+        since: String,
+        limit: Int,
+        classDiscriminator: String,
+        discriminatorValue: String
+    ): ChangesChunk<T>
+
+    /**
+     * WARNING: consumes a connection permanently
+     */
     fun <T : CouchDbDocument> subscribeForChanges(
         clazz: Class<T>,
         classDiscriminator: String,
@@ -383,7 +524,7 @@ interface Client {
     suspend fun deleteReplication(docId: String): ReplicatorResponse
     suspend fun getCouchDBVersion(): String
     fun databaseInfos(ids: Flow<String>): Flow<DatabaseInfoWrapper>
-    fun allDatabases(): Flow<String>
+    fun allDatabases(startkey: String? = null, endkey: String? = null): Flow<String>
 }
 
 private const val NOT_FOUND_ERROR = "not_found"
@@ -422,6 +563,7 @@ class ClientImpl(
 ) : Client {
     private val dbURI = couchDBUri.addSinglePathComponent(dbName)
     private val log = LoggerFactory.getLogger(javaClass.name)
+    private val shardsCache = AtomicReference<Deferred<ShardInfo>?>(null)
 
     /**
      * Alternative constructor for client with constant username and password.
@@ -446,6 +588,43 @@ class ClientImpl(
         timingHandler,
         strictMode
     )
+
+    override suspend fun shards(ignoreCache: Boolean): ShardInfo = coroutineScope {
+        doGetCachedShards(ignoreCache, this)
+    }
+
+    private tailrec suspend fun doGetCachedShards(ignoreCache: Boolean, scope: CoroutineScope): ShardInfo {
+        if (ignoreCache) {
+            val job = scope.async { doGetShards() }
+            // Immediately set if there is no job
+            val setToThis = shardsCache.compareAndSet(null, job)
+            return if (setToThis) {
+                job.await()
+            } else {
+                // Even if there is already something cached, we want to put the updated value after we are done
+                // computing it
+                job.await().also { shardsCache.set(job) }
+            }
+        } else {
+            val cachedJob = shardsCache.get()
+            if (cachedJob != null) {
+                val cachedResult = kotlin.runCatching { cachedJob.await() }.getOrNull()
+                if (cachedResult != null) {
+                    return cachedResult
+                }
+            }
+            val myJob = scope.async(start = CoroutineStart.LAZY) { doGetShards() }
+            if (shardsCache.compareAndSet(cachedJob, myJob)) {
+                return myJob.await()
+            } else {
+                myJob.cancel()
+            }
+            return doGetCachedShards(false, scope)
+        }
+    }
+
+    private suspend fun doGetShards(): ShardInfo =
+        newRequest(dbURI.addSinglePathComponent("_shards")).getCouchDbResponse<ShardInfo>()!!
 
     override suspend fun create(q: Int?, n: Int?, requestId: String?): Boolean {
         val request = newRequest(dbURI.let {
@@ -583,21 +762,59 @@ class ClientImpl(
         requestId: String,
         vararg options: Option
     ): T? {
-        val request = makeAndValidateRequest(id, rev, options)
+        val request = makeAndValidateRequest(id, rev, options, requestId = requestId)
 
         return request.getCouchDbResponse(type, nullIf404 = true)
     }
 
+    override suspend fun <T : CouchDbDocument> getWithQuorum(
+        id: String,
+        type: TypeReference<T>,
+        quorum: Int,
+        requestId: String?,
+        rev: String?,
+        timeout: Duration?,
+        vararg options: Option
+    ): T? {
+        val request = makeAndValidateRequest(id, rev, options, requestId = requestId, timeout = timeout, quorum = quorum)
+
+        return request.getCouchDbResponse(type, nullIf404 = true)
+    }
+
+    override suspend fun <T : CouchDbDocument> getWithQuorum(
+        id: String,
+        clazz: Class<T>,
+        quorum: Int,
+        requestId: String?,
+        rev: String?,
+        timeout: Duration?,
+        vararg options: Option
+    ): T? {
+        val request = makeAndValidateRequest(id, rev, options, requestId = requestId, timeout = timeout, quorum = quorum)
+
+        return request.getCouchDbResponse(clazz, nullIf404 = true)
+    }
+
     private fun makeAndValidateRequest(
         id: String,
-        rev: String,
-        options: Array<out Option>
+        rev: String?,
+        options: Array<out Option>,
+        requestId: String? = null,
+        timeout: Duration? = null,
+        quorum: Int? = null,
     ): Request {
         require(id.isNotBlank()) { "Id cannot be blank" }
-        require(rev.isNotBlank()) { "Rev cannot be blank" }
+        require(rev == null || rev.isNotBlank()) { "Rev cannot be blank" }
         return newRequest(
-            dbURI.appendDocumentOrDesignDocId(id)
-                .params((listOf("rev" to listOf(rev)) + options.map { Pair(it.paramName(), listOf("true")) }).toMap())
+            dbURI.appendDocumentOrDesignDocId(id).params(
+                (
+                    listOf("rev" to listOfNotNull(rev)) +
+                    options.map { Pair(it.paramName(), listOf("true")) } +
+                    listOf("r" to listOfNotNull(quorum?.toString()))
+                ).filter { it.second.isNotEmpty() }.toMap()
+            ),
+            requestId = requestId,
+            timeoutDuration = timeout
         )
     }
 
@@ -753,17 +970,68 @@ class ClientImpl(
     )
 
     @Suppress("UNCHECKED_CAST")
-    override suspend fun <T : CouchDbDocument> create(entity: T, clazz: Class<T>, requestId: String?): T {
-        val uri = dbURI
+    override suspend fun <T : CouchDbDocument> create(entity: T, clazz: Class<T>, requestId: String?): T =
+        doCreateWith(
+            entity,
+            objectMapper.writerFor(clazz),
+            null,
+            null,
+            requestId
+        ).first
 
-        val serializedDoc = objectMapper.writerFor(clazz).writeValueAsString(entity)
-        val request = newRequest(uri, serializedDoc, requestId = requestId)
+    override suspend fun <T : CouchDbDocument> createWithQuorum(
+        entity: T,
+        type: TypeReference<T>,
+        quorum: Int,
+        timeout: Duration?,
+        requestId: String?
+    ): Pair<T, Boolean> =
+        doCreateWith(
+            entity,
+            objectMapper.writerFor(type),
+            quorum,
+            timeout,
+            requestId
+        )
 
-        val createResponse = request.getCouchDbResponse<CUDResponse>()!!.also {
-            validate(it)
+    override suspend fun <T : CouchDbDocument> createWithQuorum(
+        entity: T,
+        clazz: Class<T>,
+        quorum: Int,
+        timeout: Duration?,
+        requestId: String?
+    ): Pair<T, Boolean> =
+        doCreateWith(
+            entity,
+            objectMapper.writerFor(clazz),
+            quorum,
+            timeout,
+            requestId
+        )
+
+    private suspend fun <T : CouchDbDocument> doCreateWith(
+        entity: T,
+        writer: ObjectWriter,
+        quorum: Int?,
+        timeout: Duration?,
+        requestId: String?
+    ): Pair<T, Boolean> {
+        val uri = dbURI.let {
+            if (quorum != null) it.param("w", quorum.toString()) else it
         }
-        // Create a new copy of the doc and set rev/id from response
-        return entity.withIdRev(createResponse.id, createResponse.rev!!) as T
+
+        val serializedDoc = writer.writeValueAsString(entity)
+        val request = newRequest(uri, serializedDoc, requestId = requestId, timeoutDuration = timeout)
+
+        return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toMono { body, statusCode, headers ->
+            mono {
+                val createResponse = body.asFlow().toObject<CUDResponse>(objectMapper, false)!!
+                validate(createResponse)
+                @Suppress("UNCHECKED_CAST")
+                val updatedEntity = entity.withIdRev(createResponse.id, createResponse.rev!!) as T
+                Pair(updatedEntity, statusCode == 201)
+            }
+        }.awaitSingle()
     }
 
     private fun validate(response: CUDResponse) {
@@ -773,8 +1041,56 @@ class ClientImpl(
         checkNotNull(response.rev)
     }
 
-    @Suppress("UNCHECKED_CAST")
-    override suspend fun <T : CouchDbDocument> update(entity: T, clazz: Class<T>, requestId: String?): T {
+    override suspend fun <T : CouchDbDocument> update(entity: T, clazz: Class<T>, requestId: String?): T =
+        doUpdateWith(
+            entity,
+            objectMapper.writerFor(clazz),
+            clazz.simpleName,
+            null,
+            null,
+            requestId
+        ).first
+
+    override suspend fun <T : CouchDbDocument> updateWithQuorum(
+        entity: T,
+        type: TypeReference<T>,
+        quorum: Int,
+        timeout: Duration?,
+        requestId: String?
+    ): Pair<T, Boolean> =
+        doUpdateWith(
+            entity,
+            objectMapper.writerFor(type),
+            type.type.typeName,
+            quorum,
+            timeout,
+            requestId
+        )
+
+    override suspend fun <T : CouchDbDocument> updateWithQuorum(
+        entity: T,
+        clazz: Class<T>,
+        quorum: Int,
+        timeout: Duration?,
+        requestId: String?
+    ): Pair<T, Boolean> =
+        doUpdateWith(
+            entity,
+            objectMapper.writerFor(clazz),
+            clazz.simpleName,
+            quorum,
+            timeout,
+            requestId
+        )
+
+    private suspend fun <T : CouchDbDocument> doUpdateWith(
+        entity: T,
+        writer: ObjectWriter,
+        typeName: String,
+        quorum: Int?,
+        timeout: Duration?,
+        requestId: String?
+    ): Pair<T, Boolean> {
         val docId = entity.id
         require(docId.isNotBlank()) { "Id cannot be blank" }
         if (strictMode) {
@@ -783,19 +1099,25 @@ class ClientImpl(
             require(entity.rev!!.matches(Regex("^[0-9]+-[a-z0-9]+$"))) { "Invalid rev format" }
         } else {
             if (entity.rev.isNullOrBlank()) {
-                log.warn("Try to update {} of class {} with null or blank revision", docId, clazz)
+                log.warn("Try to update {} of class {} with null or blank revision", docId, typeName)
             }
         }
-        val updateURI = dbURI.addSinglePathComponent(docId)
-
-        val serializedDoc = objectMapper.writerFor(clazz).writeValueAsString(entity)
-        val request = newRequest(updateURI, serializedDoc, HttpMethod.PUT, requestId)
-
-        val updateResponse = request.getCouchDbResponse<CUDResponse>()!!.also {
-            validate(it)
+        val updateURI = dbURI.addSinglePathComponent(docId).let {
+            if (quorum != null) it.param("w", quorum.toString()) else it
         }
-        // Create a new copy of the doc and set rev/id from response
-        return entity.withIdRev(updateResponse.id, updateResponse.rev!!) as T
+
+        val serializedDoc = writer.writeValueAsString(entity)
+        val request = newRequest(updateURI, serializedDoc, HttpMethod.PUT, requestId, timeoutDuration = timeout)
+
+        return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toMono { body, statusCode, headers ->
+            mono {
+                val updateResponse = body.asFlow().toObject<CUDResponse>(objectMapper, false)!!
+                validate(updateResponse)
+                @Suppress("UNCHECKED_CAST")
+                val updatedEntity = entity.withIdRev(updateResponse.id, updateResponse.rev!!) as T
+                Pair(updatedEntity, statusCode == 201)
+            }
+        }.awaitSingle()
     }
 
     override suspend fun <T : CouchDbDocument> delete(entity: T, requestId: String?): DocIdentifier {
@@ -1186,11 +1508,15 @@ class ClientImpl(
         }
     }
 
-    override fun allDatabases(): Flow<String> = flow {
+    override fun allDatabases(startkey: String?, endkey: String?): Flow<String> = flow {
         val asyncParser = objectMapper.createNonBlockingByteArrayParser()
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
-        )).addSinglePathComponent("_all_dbs")
+        )).addSinglePathComponent("_all_dbs").let {
+            if (startkey != null) it.param("startkey", "\"$startkey\"") else it
+        }.let {
+            if (endkey != null) it.param("endkey", "\"$endkey\"") else it
+        }
 
         coroutineScope {
             val request = newRequest(uri)
@@ -1330,6 +1656,32 @@ class ClientImpl(
         return request.getCouchDbResponse(object : TypeReference<T>() {}, nullIf404 = true)
     }
 
+    private data class SelectorFilter(
+        val selector: Map<String, String> // Technically could be more complicated but this is good enough for what we need
+    ) : Serializable
+
+    override suspend fun <T : CouchDbDocument> getChanges(
+        typeReference: TypeReference<ChangesChunk<T>>,
+        since: String,
+        limit: Int,
+        classDiscriminator: String,
+        discriminatorValue: String
+    ): ChangesChunk<T> =
+        newRequest(
+            dbURI.addSinglePathComponent("_changes")
+                .param("feed", "normal")
+                .param("include_docs", "true")
+                .param("since", since)
+                .param("filter", "_selector")
+                .param("limit", limit.toString()),
+            method = HttpMethod.POST,
+            body = objectMapper.writeValueAsString(SelectorFilter(mapOf(classDiscriminator to discriminatorValue)))
+        ).retrieveAndInjectRequestId(headerHandlers, timingHandler).toFlow().toObject(
+            typeReference,
+            objectMapper,
+            false
+        )!!
+
     @OptIn(FlowPreview::class)
     private fun <T : CouchDbDocument> internalSubscribeForChanges(
         clazz: Class<T>,
@@ -1421,9 +1773,10 @@ class ClientImpl(
         uri: java.net.URI,
         body: String,
         method: HttpMethod = HttpMethod.POST,
-        requestId: String? = null
+        requestId: String? = null,
+        timeoutDuration: Duration? = null
     ) =
-        newRequest(uri, method, requestId = requestId)
+        newRequest(uri, method, requestId = requestId, timeoutDuration = timeoutDuration)
             .header(HttpHeaderNames.CONTENT_TYPE.toString(), "application/json")
             .body(body)
 
