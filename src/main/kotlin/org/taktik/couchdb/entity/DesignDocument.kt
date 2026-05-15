@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.taktik.couchdb.CouchDbDocument
 import org.taktik.couchdb.handlers.DesignDocumentDeserializer
 import org.taktik.couchdb.handlers.DesignDocumentSerializer
+import org.taktik.couchdb.handlers.ViewSerializer
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -86,6 +87,7 @@ data class DesignDocument(
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonSerialize(using = ViewSerializer::class)
 data class View(
 	val map: String,
 	val reduce: String? = null,

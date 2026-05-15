@@ -11,30 +11,30 @@ import java.lang.reflect.Method
 
 internal class ReflectionUtilsKtTest {
 
-    @Test
-    fun eachField() {
-        val codeFields = eachField(Code::class.java, object : Predicate<Field> {
-            override fun apply(input: Field): Boolean {
-                return input.name === "id" || input.name === "deletionDate" || input.name === "attachments" || input.name === "conflicts" || input.name === "rev"
-            }
-        })
+	@Test
+	fun eachField() {
+		val codeFields = eachField(Code::class.java, object : Predicate<Field> {
+			override fun apply(input: Field): Boolean {
+				return input.name === "id" || input.name === "deletionDate" || input.name === "attachments" || input.name === "conflicts" || input.name === "rev"
+			}
+		})
 
-        assertTrue(codeFields.size == 5)
-    }
+		assertTrue(codeFields.size == 5)
+	}
 
-    @Test
-    fun eachMethod() {
-        val codeMethods = eachMethod(Code::class.java, object : Predicate<Method> {
-            override fun apply(input: Method): Boolean {
-                return (input.name === "withIdRev" && input.genericReturnType === Code::class.java) ||(input.name === "withIdRev" && input.genericReturnType === Versionable::class.java)
-            }
-        })
+	@Test
+	fun eachMethod() {
+		val codeMethods = eachMethod(Code::class.java, object : Predicate<Method> {
+			override fun apply(input: Method): Boolean {
+				return (input.name === "withIdRev" && input.genericReturnType === Code::class.java) ||(input.name === "withIdRev" && input.genericReturnType === Versionable::class.java)
+			}
+		})
 
-        assertTrue(codeMethods.size == 2)
-    }
+		assertTrue(codeMethods.size == 2)
+	}
 
-    @Test
-    fun hasAnnotation() {
-        assertTrue(hasAnnotation(CodeDAO::class.java, Views::class.java))
-    }
+	@Test
+	fun hasAnnotation() {
+		assertTrue(hasAnnotation(CodeDAO::class.java, Views::class.java))
+	}
 }
