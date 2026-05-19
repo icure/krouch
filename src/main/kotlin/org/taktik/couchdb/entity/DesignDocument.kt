@@ -1,17 +1,17 @@
 /*
- *    Copyright 2020 Taktik SA
+ *	Copyright 2020 Taktik SA
  *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
+ *	Licensed under the Apache License, Version 2.0 (the "License");
+ *	you may not use this file except in compliance with the License.
+ *	You may obtain a copy of the License at
  *
- *        http://www.apache.org/licenses/LICENSE-2.0
+ *		http://www.apache.org/licenses/LICENSE-2.0
  *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
+ *	Unless required by applicable law or agreed to in writing, software
+ *	distributed under the License is distributed on an "AS IS" BASIS,
+ *	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *	See the License for the specific language governing permissions and
+ *	limitations under the License.
  *
  */
 
@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
+import org.apache.commons.codec.digest.DigestUtils
 import org.taktik.couchdb.CouchDbDocument
 import org.taktik.couchdb.handlers.DesignDocumentDeserializer
 import org.taktik.couchdb.handlers.DesignDocumentSerializer
@@ -92,20 +93,29 @@ data class View(
 	val map: String,
 	val reduce: String? = null,
 ) {
+	val normalizedMap: String by lazy { normalize(map) }
+	val sha: String by lazy { DigestUtils.sha256Hex(normalizedMap + (reduce?.let { "_$it" } ?: ""))  }
+
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
 		if (javaClass != other?.javaClass) return false
 
 		other as View
 
-		if (normalize(map) != normalize(other.map)) return false
+		if (normalizedMap != other.normalizedMap) return false
 		return reduce == other.reduce
 	}
 
-	private fun normalize(map: String) = map.replace("^map *= *function *".toRegex(), "function").replace("[ \t\n\r;]*$".toRegex(), "").replace("[\n\r][ \t]*".toRegex(), "\n")
+	private fun normalize(map: String) = map
+		.replace("^map\\s*=\\s*function\\s*".toRegex(), "function")
+		.replace("[ \t\n\r;]*$".toRegex(), "")
+		.replace("[\n\r][ \t]*".toRegex(), "\n")
+		.replace("\\s+".toRegex(), " ")
+		.replace(" == ", " === ")
+		.replace("\\s([)}\\]])".toRegex(), "$1")
 
 	override fun hashCode(): Int {
-		var result = map.replace("^map *= *function".toRegex(), "function").hashCode()
+		var result = normalizedMap.hashCode()
 		result = 31 * result + (reduce?.hashCode() ?: 0)
 		return result
 	}

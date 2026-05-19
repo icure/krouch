@@ -7,7 +7,7 @@ import org.taktik.couchdb.support.generators.views.ViewGenerator
 class DefaultDesignDocGenerator<T : Any> : DesignDocGenerator<T>() {
 
 	private fun createViewVersionHash(views: List<View>): String =
-		DigestUtils.sha256Hex(views.sortedBy { it.map }.joinToString { it.toString() }).substring(0, 4)
+		DigestUtils.sha256Hex(views.map { it.sha }.sorted().joinToString()).substring(0, 8)
 
 	override fun splitViews(
 		entityName: String,
