@@ -23,7 +23,7 @@ class LegacyDesignDocumentFactory<T : Any>(
 
 	companion object {
 		fun getStdDesignDocumentFactory() =
-			LegacyDesignDocumentFactory(SimpleViewGenerator())
+			LegacyDesignDocumentFactory(LegacySimpleViewGenerator())
 	}
 
 	/*
