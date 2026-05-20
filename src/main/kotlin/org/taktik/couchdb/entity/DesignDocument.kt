@@ -52,10 +52,14 @@ data class DesignDocument(
 
 	fun mergeWith(dd: DesignDocument, forceUpdate: Boolean): Pair<DesignDocument, Boolean> {
 		var changed = false
-		return (((((
+		return ((((((
 			mergeViews(dd.views, forceUpdate)?.let {
 				changed = true
 				dd.copy(views = it)
+			} ?: dd)
+			.mergeFunctions(lib, dd.lib, forceUpdate)?.let {
+				changed = true
+				dd.copy(lib = it)
 			} ?: dd)
 			.mergeFunctions(lists, dd.lists, forceUpdate)?.let {
 				changed = true
