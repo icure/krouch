@@ -3,6 +3,9 @@ package org.taktik.couchdb.entity
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.taktik.couchdb.dao.UserDAO
+import org.taktik.couchdb.support.DesignDocumentFactory
+import org.taktik.couchdb.util.LegacyDesignDocumentFactory
 
 class DesignDocumentTest {
 
@@ -120,5 +123,22 @@ class DesignDocumentTest {
 
 		assertEquals(original.lib, deserialized.lib)
 		assertTrue(deserialized.views.isEmpty())
+	}
+
+	@Test
+	fun `legacy DesignDoc generation is equivalent to refactored generation`() {
+		val dao = UserDAO()
+		val original = LegacyDesignDocumentFactory.getStdDesignDocumentFactory().generateFrom(
+			baseId = "_design/User",
+			metaDataSource = dao,
+			useVersioning = true
+		)
+		val new = DesignDocumentFactory.getStdDesignDocumentFactory().generateFrom(
+			designDocEntityName = "User",
+			partition = null,
+			metaDataSource = dao,
+			useVersioning = true
+		)
+		assertEquals(original, new)
 	}
 }

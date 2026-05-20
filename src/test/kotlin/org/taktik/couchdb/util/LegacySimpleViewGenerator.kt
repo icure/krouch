@@ -5,7 +5,7 @@ import org.taktik.couchdb.annotation.View
 import org.taktik.couchdb.annotation.Views
 import java.io.FileNotFoundException
 
-class LegacySimpleViewGenerator : ViewGenerator<Any> {
+class LegacySimpleViewGenerator : LegacyViewGenerator<Any> {
 
 	private fun View.fullName(baseId: String) = this.secondaryPartition.takeIf { it.isNotBlank() }?.let { "${baseId}-${it}/${this.name}" } ?: "${baseId}/${this.name}"
 

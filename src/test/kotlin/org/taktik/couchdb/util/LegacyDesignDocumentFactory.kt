@@ -13,12 +13,8 @@ import org.taktik.couchdb.entity.DesignDocument
 import org.taktik.couchdb.support.generators.views.ViewGenerator
 import java.io.FileNotFoundException
 
-/**
- *
- * @author Antoine Duchâteau, based on of Ektorp by henrik lundgren
- */
 class LegacyDesignDocumentFactory<T : Any>(
-	private val viewGenerator: ViewGenerator<T>
+	private val viewGenerator: LegacyViewGenerator<T>
 ) {
 
 	companion object {
@@ -26,11 +22,6 @@ class LegacyDesignDocumentFactory<T : Any>(
 			LegacyDesignDocumentFactory(LegacySimpleViewGenerator())
 	}
 
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see org.ektorp.support.DesignDocumentFactory#generateFrom(java.lang.Object)
-	 */
 	fun generateFrom(baseId: String, metaDataSource: T, useVersioning: Boolean = true): Set<DesignDocument> {
 		val (prefix, suffix) = baseId.split("/").let { it.subList(0, it.size - 1).joinToString("/") to it.last() }
 		val metaDataClass = metaDataSource.javaClass

@@ -112,7 +112,7 @@ data class View(
 		other as View
 
 		if (normalizedMap != other.normalizedMap) return false
-		return reduce == other.reduce
+		return normalizedReduce == other.normalizedReduce
 	}
 
 	private fun normalize(map: String, prefix: String) = map
@@ -125,7 +125,7 @@ data class View(
 
 	override fun hashCode(): Int {
 		var result = normalizedMap.hashCode()
-		result = 31 * result + (reduce?.hashCode() ?: 0)
+		result = 31 * result + (normalizedReduce?.hashCode() ?: 0)
 		return result
 	}
 }
