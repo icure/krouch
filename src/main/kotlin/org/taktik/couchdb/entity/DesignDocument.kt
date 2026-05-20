@@ -17,6 +17,7 @@
 
 package org.taktik.couchdb.entity
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -97,7 +98,9 @@ data class View(
 	val map: String,
 	val reduce: String? = null,
 ) {
+	@get:JsonIgnore
 	val normalizedMap: String by lazy { normalize(map) }
+	@get:JsonIgnore
 	val sha: String by lazy { DigestUtils.sha256Hex(normalizedMap + (reduce?.let { "_$it" } ?: ""))  }
 
 	override fun equals(other: Any?): Boolean {
