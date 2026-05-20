@@ -99,7 +99,9 @@ data class View(
 	val reduce: String? = null,
 ) {
 	@get:JsonIgnore
-	val normalizedMap: String by lazy { normalize(map) }
+	val normalizedReduce: String? by lazy { reduce?.let { normalize(it, prefix = "reduce") } }
+	@get:JsonIgnore
+	val normalizedMap: String by lazy { normalize(map, prefix = "map") }
 	@get:JsonIgnore
 	val sha: String by lazy { DigestUtils.sha256Hex(normalizedMap + (reduce?.let { "_$it" } ?: ""))  }
 
@@ -113,8 +115,8 @@ data class View(
 		return reduce == other.reduce
 	}
 
-	private fun normalize(map: String) = map
-		.replace("^map\\s*=\\s*function\\s*".toRegex(), "function")
+	private fun normalize(map: String, prefix: String) = map
+		.replace("^$prefix\\s*=\\s*function\\s*".toRegex(), "function")
 		.replace("[ \t\n\r;]*$".toRegex(), "")
 		.replace("[\n\r][ \t]*".toRegex(), "\n")
 		.replace("\\s+".toRegex(), " ")
