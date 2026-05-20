@@ -1,107 +1,131 @@
 /*
- *    Copyright 2020 Taktik SA
+ *	Copyright 2020 Taktik SA
  *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
+ *	Licensed under the Apache License, Version 2.0 (the "License");
+ *	you may not use this file except in compliance with the License.
+ *	You may obtain a copy of the License at
  *
- *        http://www.apache.org/licenses/LICENSE-2.0
+ *		http://www.apache.org/licenses/LICENSE-2.0
  *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
+ *	Unless required by applicable law or agreed to in writing, software
+ *	distributed under the License is distributed on an "AS IS" BASIS,
+ *	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *	See the License for the specific language governing permissions and
+ *	limitations under the License.
  *
  */
 
 package org.taktik.couchdb.entity
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import org.apache.commons.codec.digest.DigestUtils
 import org.taktik.couchdb.CouchDbDocument
+import org.taktik.couchdb.handlers.DesignDocumentDeserializer
+import org.taktik.couchdb.handlers.DesignDocumentSerializer
+import org.taktik.couchdb.handlers.ViewSerializer
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonSerialize(using = DesignDocumentSerializer::class)
+@JsonDeserialize(using = DesignDocumentDeserializer::class)
 data class DesignDocument(
-        @JsonProperty("_id") override var id: String,
-        @JsonProperty("_rev") override var rev: String? = null,
-        @JsonProperty("rev_history") override val revHistory: Map<String, String> = mapOf(),
-        val language: String? = null,
-        val views: Map<String, View> = mapOf(),
-        val lists: Map<String, String> = mapOf(),
-        val shows: Map<String, String> = mapOf(),
-        val updateHandlers: Map<String, String>? = null,
-        val filters: Map<String, String> = mapOf()
+	@param:JsonProperty("_id") override var id: String,
+	@param:JsonProperty("_rev") override var rev: String? = null,
+	val language: String? = null,
+	val views: Map<String, View> = mapOf(),
+	val lib: Map<String, String> = mapOf(),
+	val lists: Map<String, String> = mapOf(),
+	val shows: Map<String, String> = mapOf(),
+	val updateHandlers: Map<String, String>? = null,
+	val filters: Map<String, String> = mapOf()
 ) : CouchDbDocument {
-    override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
 
-    fun mergeWith(dd: DesignDocument, forceUpdate: Boolean): Pair<DesignDocument, Boolean> {
-        var changed = false
-        return (((((
-                mergeViews(dd.views, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(views = it)
-                } ?: dd)
-                .mergeFunctions(lists, dd.lists, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(lists = it)
-                } ?: dd)
-                .mergeFunctions(shows, dd.shows, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(shows = it)
-                } ?: dd)
-                .mergeFunctions(filters, dd.filters, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(filters = it)
-                } ?: dd)
-                .mergeFunctions(updateHandlers, dd.updateHandlers, forceUpdate)?.let {
-                    changed = true
-                    dd.copy(updateHandlers = it)
-        } ?: dd) to changed
-    }
+	companion object {
+		const val LIB_VIEW_KEY = "lib"
+	}
 
-    private fun mergeFunctions(existing: Map<String, String>?, mergeFunctions: Map<String, String>?, updateOnDiff: Boolean) =
-            (mergeFunctions ?: mapOf()).entries.fold(null as Map<String, String>?) { res, (name, func) ->
-                if (existing == null || !existing.containsKey(name) || (updateOnDiff && existing[name] != func)) (existing ?: mapOf()) + (name to func) else res
-            }
+	override fun withIdRev(id: String?, rev: String) = if (id != null) this.copy(id = id, rev = rev) else this.copy(rev = rev)
 
-    private fun mergeViews(mergeViews: Map<String, View>, updateOnDiff: Boolean) =
-            mergeViews.entries.fold(null as Map<String, View>?) { res, (name, view) ->
-                if (!views.containsKey(name) || (updateOnDiff && (views[name] != view))) views + (name to view) else res
-            }
+	fun mergeWith(dd: DesignDocument, forceUpdate: Boolean): Pair<DesignDocument, Boolean> {
+		var changed = false
+		return ((((((
+			mergeViews(dd.views, forceUpdate)?.let {
+				changed = true
+				dd.copy(views = it)
+			} ?: dd)
+			.mergeFunctions(lib, dd.lib, forceUpdate)?.let {
+				changed = true
+				dd.copy(lib = it)
+			} ?: dd)
+			.mergeFunctions(lists, dd.lists, forceUpdate)?.let {
+				changed = true
+				dd.copy(lists = it)
+			} ?: dd)
+			.mergeFunctions(shows, dd.shows, forceUpdate)?.let {
+				changed = true
+				dd.copy(shows = it)
+			} ?: dd)
+			.mergeFunctions(filters, dd.filters, forceUpdate)?.let {
+				changed = true
+				dd.copy(filters = it)
+			} ?: dd)
+			.mergeFunctions(updateHandlers, dd.updateHandlers, forceUpdate)?.let {
+				changed = true
+				dd.copy(updateHandlers = it)
+			} ?: dd) to changed
+	}
+
+	private fun mergeFunctions(existing: Map<String, String>?, mergeFunctions: Map<String, String>?, updateOnDiff: Boolean) =
+		(mergeFunctions ?: mapOf()).entries.fold(null as Map<String, String>?) { res, (name, func) ->
+			if (existing == null || !existing.containsKey(name) || (updateOnDiff && existing[name] != func)) (existing ?: mapOf()) + (name to func) else res
+		}
+
+	private fun mergeViews(mergeViews: Map<String, View>, updateOnDiff: Boolean) =
+		mergeViews.entries.fold(null as Map<String, View>?) { res, (name, view) ->
+			if (!views.containsKey(name) || (updateOnDiff && (views[name] != view))) views + (name to view) else res
+		}
 }
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class View(val map: String, val reduce: String? = null) {
-    val normalizedMap: String by lazy { normalize(map) }
-    val sha: String by lazy { DigestUtils.sha256Hex(normalizedMap + (reduce?.let { "_$it" } ?: ""))  }
+@JsonSerialize(using = ViewSerializer::class)
+data class View(
+	val map: String,
+	val reduce: String? = null,
+) {
+	@get:JsonIgnore
+	val normalizedReduce: String? by lazy { reduce?.let { normalize(it, prefix = "reduce") } }
+	@get:JsonIgnore
+	val normalizedMap: String by lazy { normalize(map, prefix = "map") }
+	@get:JsonIgnore
+	val sha: String by lazy { DigestUtils.sha256Hex(normalizedMap + (reduce?.let { "_$it" } ?: ""))  }
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (javaClass != other?.javaClass) return false
 
-        other as View
+		other as View
 
-        if (normalizedMap != other.normalizedMap) return false
-        return reduce == other.reduce
-    }
+		if (normalizedMap != other.normalizedMap) return false
+		return normalizedReduce == other.normalizedReduce
+	}
 
-    private fun normalize(map: String) = map
-        .replace("^map\\s*=\\s*function\\s*".toRegex(), "function")
-        .replace("[ \t\n\r;]*$".toRegex(), "")
-        .replace("[\n\r][ \t]*".toRegex(), "\n")
-        .replace("\\s+".toRegex(), " ")
-        .replace(" == ", " === ")
-        .replace("\\s([)}\\]])".toRegex(), "$1")
+	private fun normalize(map: String, prefix: String) = map
+		.replace("^$prefix\\s*=\\s*function\\s*".toRegex(), "function")
+		.replace("[ \t\n\r;]*$".toRegex(), "")
+		.replace("[\n\r][ \t]*".toRegex(), "\n")
+		.replace("\\s+".toRegex(), " ")
+		.replace(" == ", " === ")
+		.replace("\\s([)}\\]])".toRegex(), "$1")
 
-
-    override fun hashCode(): Int {
-        var result = normalizedMap.hashCode()
-        result = 31 * result + (reduce?.hashCode() ?: 0)
-        return result
-    }
+	override fun hashCode(): Int {
+		var result = normalizedMap.hashCode()
+		result = 31 * result + (normalizedReduce?.hashCode() ?: 0)
+		return result
+	}
 }

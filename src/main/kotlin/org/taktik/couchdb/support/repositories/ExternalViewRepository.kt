@@ -1,4 +1,4 @@
-package org.taktik.couchdb.support.views
+package org.taktik.couchdb.support.repositories
 
 import org.taktik.couchdb.entity.View
 

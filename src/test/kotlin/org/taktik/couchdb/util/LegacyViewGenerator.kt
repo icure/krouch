@@ -1,8 +1,8 @@
-package org.taktik.couchdb.support
+package org.taktik.couchdb.util
 
 import org.taktik.couchdb.entity.View
 
-interface ViewGenerator<T> {
+interface LegacyViewGenerator<T> {
 
 	fun generateViews(
 		repository: T,

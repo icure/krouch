@@ -31,23 +31,22 @@ import java.time.ZonedDateTime
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ReplicatorDocument(
-        @JsonProperty("_id") override val id: String,
-        @JsonProperty("_rev") override val rev: String?,
+        @param:JsonProperty("_id") override val id: String,
+        @param:JsonProperty("_rev") override val rev: String?,
         val source: ReplicateCommand.Remote? = null,
         val target: ReplicateCommand.Remote? = null,
         val owner: String? = null,
         val create_target: Boolean? = null,
         val continuous: Boolean? = null,
         val doc_ids: List<String>? = null,
-        @JsonProperty("_replication_state") val replicationState: String? = null,
-        @JsonProperty("_replication_state_time")
-        @JsonSerialize(using = ZonedDateTimeSerializer::class)
-        @JsonDeserialize(using = ZonedDateTimeDeserializer::class)
+        @param:JsonProperty("_replication_state") val replicationState: String? = null,
+        @param:JsonProperty("_replication_state_time")
+        @param:JsonSerialize(using = ZonedDateTimeSerializer::class)
+        @param:JsonDeserialize(using = ZonedDateTimeDeserializer::class)
         val replicationStateTime: ZonedDateTime? = null,
-        @JsonProperty("_replication_stats") val replicationStats: ReplicationStats? = null,
-        @JsonProperty("error_count") val errorCount: Int? = null,
-        @JsonProperty("_revs_info") val revsInfo: List<Map<String,String>>? = null,
-        @JsonProperty("rev_history") override val revHistory: Map<String, String>? = null,
+        @param:JsonProperty("_replication_stats") val replicationStats: ReplicationStats? = null,
+        @param:JsonProperty("error_count") val errorCount: Int? = null,
+        @param:JsonProperty("_revs_info") val revsInfo: List<Map<String,String>>? = null,
 ) : CouchDbDocument {
     override fun withIdRev(id: String?, rev: String) = id?.let { this.copy(id = it, rev = rev) } ?: this.copy(rev = rev)
 }
@@ -55,16 +54,16 @@ data class ReplicatorDocument(
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ReplicationStats(
-        @JsonProperty("revisions_checked") val revisionsChecked: Int? = null,
-        @JsonProperty("missing_revisions_found") val missingRevisionsFound: Int? = null,
-        @JsonProperty("docs_read") val docsRead: Int? = null,
-        @JsonProperty("docs_written") val docsWritten: Int? = null,
-        @JsonProperty("changes_pending") val changesPending: Int? = null,
-        @JsonProperty("doc_write_failures") val docWriteFailures: Int? = null,
-        @JsonProperty("checkpointed_source_seq") val checkpointedSourceSeq: String? = null,
-        @JsonProperty("start_time")
-        @JsonSerialize(using = ZonedDateTimeSerializer::class)
-        @JsonDeserialize(using = ZonedDateTimeDeserializer::class)
+        @param:JsonProperty("revisions_checked") val revisionsChecked: Int? = null,
+        @param:JsonProperty("missing_revisions_found") val missingRevisionsFound: Int? = null,
+        @param:JsonProperty("docs_read") val docsRead: Int? = null,
+        @param:JsonProperty("docs_written") val docsWritten: Int? = null,
+        @param:JsonProperty("changes_pending") val changesPending: Int? = null,
+        @param:JsonProperty("doc_write_failures") val docWriteFailures: Int? = null,
+        @param:JsonProperty("checkpointed_source_seq") val checkpointedSourceSeq: String? = null,
+        @param:JsonProperty("start_time")
+        @param:JsonSerialize(using = ZonedDateTimeSerializer::class)
+        @param:JsonDeserialize(using = ZonedDateTimeDeserializer::class)
         val startTime: ZonedDateTime? = null,
         val error: String? = null
 ) : Serializable
