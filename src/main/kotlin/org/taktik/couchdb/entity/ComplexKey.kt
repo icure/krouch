@@ -55,8 +55,9 @@ class ComplexKey(components: Array<Any?> = arrayOf()) {
         /**
          * Add this Object to the key if an empty object definition is desired:
          * ["foo",{}]
-         * @return an object that will serialize to {}
+         * @return an object that will serialize to {} ONLY IF USED WITHIN A COMPLEX KEY
          */
+        @Deprecated("Serialized properly only if used inside a ComplexKey, use EmptyObjectKey instead if you want something that always serializes correctly")
         fun emptyObject(): Any {
             return EMPTY_OBJECT
         }
