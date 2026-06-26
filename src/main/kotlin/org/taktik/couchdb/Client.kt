@@ -66,17 +66,14 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.produceIn
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.mono
@@ -116,6 +113,8 @@ import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 class NoHeartbeatException(msg: String) : CancellationException(msg)
 
@@ -181,18 +180,18 @@ data class ViewRowWithMissingDoc<K, V>(override val id: String, override val key
 
 private data class BulkUpdateRequest<T : CouchDbDocument>(
     val docs: Collection<T>,
-    @JsonProperty("all_or_nothing") val allOrNothing: Boolean = false
+    @param:JsonProperty("all_or_nothing") val allOrNothing: Boolean = false
 )
 
 private data class BulkDeleteRequest(
     val docs: Collection<DeleteRequest>,
-    @JsonProperty("all_or_nothing") val allOrNothing: Boolean = false
+    @param:JsonProperty("all_or_nothing") val allOrNothing: Boolean = false
 )
 
 private data class DeleteRequest(
-    @JsonProperty("_id") val id: String,
-    @JsonProperty("_rev") val rev: String?,
-    @JsonProperty("_deleted") val deleted: Boolean = true
+    @param:JsonProperty("_id") val id: String,
+    @param:JsonProperty("_rev") val rev: String?,
+    @param:JsonProperty("_deleted") val deleted: Boolean = true
 )
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -421,7 +420,7 @@ interface Client {
      * If all nodes responded within the time then the second item will be true.
      *
      * # Timeout
-     * [timeoutMs] is the max time to wait for a response before giving up.
+     * [timeout] is the max time to wait for a response before giving up.
      * If a node is unresponsive and the quorum requires a response from all nodes then the couchdb request would wait
      * until the fabric timeout is reached on that node, which could be very long.
      * Currently couchdb doesn't support a configuration of the timeout on a per-request basis, so this timeout is
@@ -558,7 +557,7 @@ class ClientImpl(
     private val credentialsProvider: () -> Pair<String, String>,
     private val objectMapper: ObjectMapper = ObjectMapper().also { it.registerKotlinModule() },
     private val headerHandlers: Map<String, HeaderHandler> = mapOf(),
-    private val timingHandler: ((Long) -> Mono<Unit>)? = null,
+    private val timingHandler: ((timing: Long, responseHeaders: Map<String, List<String>>) -> Mono<Unit>)? = null,
     private val strictMode: Boolean = false,
 ) : Client {
     private val dbURI = couchDBUri.addSinglePathComponent(dbName)
@@ -576,7 +575,7 @@ class ClientImpl(
         password: String,
         objectMapper: ObjectMapper = ObjectMapper().also { it.registerKotlinModule() },
         headerHandlers: Map<String, HeaderHandler> = mapOf(),
-        timingHandler: ((Long) -> Mono<Unit>)? = null,
+        timingHandler: ((timing: Long, responseHeaders: Map<String, List<String>>) -> Mono<Unit>)? = null,
         strictMode: Boolean = false
     ) : this(
         httpClient,
@@ -996,14 +995,14 @@ class ClientImpl(
 
     override suspend fun <T : CouchDbDocument> createWithQuorum(
         entity: T,
-        clazz: Class<T>,
+        type: Class<T>,
         quorum: Int,
         timeout: Duration?,
         requestId: String?
     ): Pair<T, Boolean> =
         doCreateWith(
             entity,
-            objectMapper.writerFor(clazz),
+            objectMapper.writerFor(type),
             quorum,
             timeout,
             requestId
@@ -1023,7 +1022,7 @@ class ClientImpl(
         val serializedDoc = writer.writeValueAsString(entity)
         val request = newRequest(uri, serializedDoc, requestId = requestId, timeoutDuration = timeout)
 
-        return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toMono { body, statusCode, headers ->
+        return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toMono { body, statusCode, _ ->
             mono {
                 val createResponse = body.asFlow().toObject<CUDResponse>(objectMapper, false)!!
                 validate(createResponse)
@@ -1069,15 +1068,15 @@ class ClientImpl(
 
     override suspend fun <T : CouchDbDocument> updateWithQuorum(
         entity: T,
-        clazz: Class<T>,
+        type: Class<T>,
         quorum: Int,
         timeout: Duration?,
         requestId: String?
     ): Pair<T, Boolean> =
         doUpdateWith(
             entity,
-            objectMapper.writerFor(clazz),
-            clazz.simpleName,
+            objectMapper.writerFor(type),
+            type.simpleName,
             quorum,
             timeout,
             requestId
@@ -1109,7 +1108,7 @@ class ClientImpl(
         val serializedDoc = writer.writeValueAsString(entity)
         val request = newRequest(updateURI, serializedDoc, HttpMethod.PUT, requestId, timeoutDuration = timeout)
 
-        return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toMono { body, statusCode, headers ->
+        return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toMono { body, statusCode, _ ->
             mono {
                 val updateResponse = body.asFlow().toObject<CUDResponse>(objectMapper, false)!!
                 validate(updateResponse)
@@ -1446,7 +1445,7 @@ class ClientImpl(
                 val watcher = async(Dispatchers.IO) {
                     var guard = true
                     while (guard) {
-                        delay(32000)
+                        delay(32.seconds)
                         if (latestHeartbeat < Instant.now().toEpochMilli() - 28000) {
                             guard = false
                             collectDeferred.cancel(NoHeartbeatException("No Heartbeat for 30 s."))
@@ -1458,7 +1457,7 @@ class ClientImpl(
 
                 log.error("End of connection reached while listening for changes on ${dbURI}. Will try to re-subscribe in ${delayMillis}ms")
                 watcher.cancel()
-                delay(delayMillis)
+                delay(delayMillis.milliseconds)
                 log.error("Resubscribing to $dbURI")
 
                 // Attempt to re-subscribe indefinitely, with an exponential backoff
@@ -1746,7 +1745,7 @@ class ClientImpl(
                         // Parse as actual Change object with the correct class
                         buffer.asParser(objectMapper).readValueAs<Change<T>>(typeRef)
                     } catch (e: JsonMappingException) {
-                        log.debug("$dbURI Unmarshalling error while deserialising change of class $className", e)
+                        log.debug("{} Unmarshalling error while deserialising change of class {}", dbURI, className, e)
                         null
                     }
                     value?.let { emit(it) }
@@ -1858,10 +1857,12 @@ class ClientImpl(
 @OptIn(ExperimentalCoroutinesApi::class)
 private fun Request.retrieveAndInjectRequestId(
     headerHandlers: Map<String, HeaderHandler>,
-    timingHandler: ((Long) -> Mono<Unit>)?
+    timingHandler: ((timing: Long, responseHeaders: Map<String, List<String>>) -> Mono<Unit>)?
 ): Response = this.retrieve().let {
     headerHandlers.entries.fold(it) { resp, (header, handler) ->
         resp.onHeader(header) { value -> mono { handler.handle(value) } }
-    }.let { resp -> timingHandler?.let { resp.withTiming(it) } ?: resp }
+    }.let { resp ->
+        timingHandler?.let { handler -> resp.withTiming(handler) } ?: resp
+    }
 }
 
