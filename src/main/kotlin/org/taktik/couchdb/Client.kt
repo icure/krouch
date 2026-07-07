@@ -200,6 +200,18 @@ private data class DeleteRequest(
 data class BulkUpdateResult(val id: String, val rev: String?, val ok: Boolean?, val error: String?, val reason: String?)
 data class DocIdentifier(val id: String?, val rev: String?)
 
+/**
+ * One entry of the JSON array CouchDB returns for `GET /db/id?open_revs=all` (plain-JSON, non-multipart form):
+ * `[{"ok": {...doc...}}, {"ok": {...doc2...}}]`. Only ever has [ok] set in that response shape.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class OpenRevResult<T>(val ok: T? = null)
+
+private data class BulkImportRequest<T : CouchDbDocument>(
+    val docs: Collection<T>,
+    @JsonProperty("new_edits") val newEdits: Boolean = false
+)
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ReplicatorResponse(
@@ -525,6 +537,35 @@ interface Client {
     suspend fun getCouchDBVersion(): String
     fun databaseInfos(ids: Flow<String>): Flow<DatabaseInfoWrapper>
     fun allDatabases(startkey: String? = null, endkey: String? = null): Flow<String>
+
+    /**
+     * Fetches every leaf revision of a document: the winning revision plus every open and deleted conflict,
+     * each with its `_revisions` ancestor-chain embedded (so it can be replayed elsewhere with
+     * [bulkImportWithoutNewEdits]). Backed by CouchDB's `open_revs=all&revs=true`.
+     *
+     * Default implementation throws: only [ClientImpl] provides a real implementation, so implementers that
+     * delegate to [Client] without overriding this (e.g. decorators over multiple clients) keep compiling and
+     * simply don't support this operation unless they choose to override it too.
+     */
+    suspend fun <T : CouchDbDocument> getAllLeafRevisions(
+        id: String,
+        clazz: Class<T>,
+        includeAttachmentsData: Boolean = false,
+        requestId: String? = null,
+    ): List<T> = throw UnsupportedOperationException("getAllLeafRevisions is not supported by this Client implementation")
+
+    /**
+     * Writes entities to `_bulk_docs` with `new_edits=false`, so CouchDB accepts each entity's own `_rev`
+     * (and, if present, `_revisions` ancestor history) verbatim instead of generating new revisions. Used to
+     * faithfully replay a revision/conflict tree captured via [getAllLeafRevisions] into another database.
+     *
+     * Default implementation throws, for the same reason as [getAllLeafRevisions].
+     */
+    fun <T : CouchDbDocument> bulkImportWithoutNewEdits(
+        entities: Collection<T>,
+        clazz: Class<T>,
+        requestId: String? = null,
+    ): Flow<BulkUpdateResult> = throw UnsupportedOperationException("bulkImportWithoutNewEdits is not supported by this Client implementation")
 }
 
 private const val NOT_FOUND_ERROR = "not_found"
@@ -816,6 +857,34 @@ class ClientImpl(
             requestId = requestId,
             timeoutDuration = timeout
         )
+    }
+
+    override suspend fun <T : CouchDbDocument> getAllLeafRevisions(
+        id: String,
+        clazz: Class<T>,
+        includeAttachmentsData: Boolean,
+        requestId: String?,
+    ): List<T> {
+        require(id.isNotBlank()) { "Id cannot be blank" }
+        // Without an explicit Accept header CouchDB replies to open_revs=all with a multipart/mixed body;
+        // this forces the plain-JSON array shape ([{"ok": {...}}, ...]) instead.
+        val request = newRequest(
+            dbURI.appendDocumentOrDesignDocId(id).params(
+                mapOf(
+                    "open_revs" to listOf("all"),
+                    "revs" to listOf("true"),
+                    "attachments" to listOf(includeAttachmentsData.toString())
+                )
+            ),
+            requestId = requestId
+        ).header(HttpHeaderNames.ACCEPT.toString(), "application/json")
+        val listOfOpenRevResultType =
+            object : TypeToken<List<OpenRevResult<T>>>() {}.where(object : TypeParameter<T>() {}, clazz).type
+        val typeRef = object : TypeReference<List<OpenRevResult<T>>>() {
+            override fun getType(): Type = listOfOpenRevResultType
+        }
+        val results = request.getCouchDbResponse(typeRef, nullIf404 = true) ?: emptyList()
+        return results.mapNotNull { it.ok }
     }
 
     private data class AllDocsViewValue(val rev: String, val deleted: Boolean? = null)
@@ -1144,6 +1213,17 @@ class ClientImpl(
                     require(it.rev == null || it.rev!!.matches(Regex("^[0-9]+-[a-z0-9]+$"))) { "Rev should be null or have a valid format" }
                 }
                 emitUpdateResults(this, BulkUpdateRequest(entities), requestId)
+            }
+        }
+
+    override fun <T : CouchDbDocument> bulkImportWithoutNewEdits(
+        entities: Collection<T>,
+        clazz: Class<T>,
+        requestId: String?
+    ): Flow<BulkUpdateResult> =
+        flow {
+            coroutineScope {
+                emitUpdateResults(this, BulkImportRequest(entities), requestId)
             }
         }
 
