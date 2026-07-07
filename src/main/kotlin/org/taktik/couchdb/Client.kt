@@ -552,7 +552,7 @@ interface Client {
         clazz: Class<T>,
         includeAttachmentsData: Boolean = false,
         requestId: String? = null,
-    ): List<T> = throw UnsupportedOperationException("getAllLeafRevisions is not supported by this Client implementation")
+    ): List<T>
 
     /**
      * Writes entities to `_bulk_docs` with `new_edits=false`, so CouchDB accepts each entity's own `_rev`
@@ -565,7 +565,7 @@ interface Client {
         entities: Collection<T>,
         clazz: Class<T>,
         requestId: String? = null,
-    ): Flow<BulkUpdateResult> = throw UnsupportedOperationException("bulkImportWithoutNewEdits is not supported by this Client implementation")
+    ): Flow<BulkUpdateResult>
 }
 
 private const val NOT_FOUND_ERROR = "not_found"
