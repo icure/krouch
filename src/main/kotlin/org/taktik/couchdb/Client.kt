@@ -207,6 +207,19 @@ data class DocIdentifier(val id: String?, val rev: String?)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class OpenRevResult<T>(val ok: T? = null)
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
+private data class BulkGetRequestDoc(val id: String, val rev: String? = null)
+private data class BulkGetRequest(val docs: Collection<BulkGetRequestDoc>)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class BulkGetResultDoc<T>(val ok: T? = null)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class BulkGetResult<T>(val id: String? = null, val docs: List<BulkGetResultDoc<T>> = emptyList())
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class BulkGetResponse<T>(val results: List<BulkGetResult<T>>)
+
 private data class BulkImportRequest<T : CouchDbDocument>(
     val docs: Collection<T>,
     @JsonProperty("new_edits") val newEdits: Boolean = false
@@ -566,6 +579,22 @@ interface Client {
         clazz: Class<T>,
         requestId: String? = null,
     ): Flow<BulkUpdateResult>
+
+    /**
+     * Fetches specific (id, rev) pairs in a single request, via CouchDB's `_bulk_get`. When a pair's `rev`
+     * is null, CouchDB returns *every* leaf revision of that id (open and deleted conflicts alike, each with
+     * its `_revisions` ancestor chain embedded via `revs=true`) - the same set [getAllLeafRevisions] returns
+     * for one id, but for as many ids as you like in one HTTP request. Pairs that don't resolve to a real
+     * document/revision are silently skipped.
+     *
+     * This is the primitive that makes archiving a whole database's revision/conflict trees cost on the
+     * order of one request per *batch* of ids (e.g. 1000) rather than one request per document.
+     */
+    suspend fun <T : CouchDbDocument> getBulkByIdsAndRevs(
+        idsAndRevs: Collection<Pair<String, String?>>,
+        clazz: Class<T>,
+        requestId: String? = null,
+    ): List<T>
 }
 
 private const val NOT_FOUND_ERROR = "not_found"
@@ -885,6 +914,24 @@ class ClientImpl(
         }
         val results = request.getCouchDbResponse(typeRef, nullIf404 = true) ?: emptyList()
         return results.mapNotNull { it.ok }
+    }
+
+    override suspend fun <T : CouchDbDocument> getBulkByIdsAndRevs(
+        idsAndRevs: Collection<Pair<String, String?>>,
+        clazz: Class<T>,
+        requestId: String?,
+    ): List<T> {
+        if (idsAndRevs.isEmpty()) return emptyList()
+        val uri = dbURI.addSinglePathComponent("_bulk_get").param("revs", "true")
+        val body = BulkGetRequest(idsAndRevs.map { (id, rev) -> BulkGetRequestDoc(id, rev) })
+        val request = newRequest(uri, objectMapper.writeValueAsString(body), requestId = requestId)
+        val responseType =
+            object : TypeToken<BulkGetResponse<T>>() {}.where(object : TypeParameter<T>() {}, clazz).type
+        val typeRef = object : TypeReference<BulkGetResponse<T>>() {
+            override fun getType(): Type = responseType
+        }
+        val response = request.getCouchDbResponse(typeRef, nullIf404 = true)
+        return response?.results?.flatMap { it.docs }?.mapNotNull { it.ok } ?: emptyList()
     }
 
     private data class AllDocsViewValue(val rev: String, val deleted: Boolean? = null)

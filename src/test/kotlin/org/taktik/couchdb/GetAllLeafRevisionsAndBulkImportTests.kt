@@ -113,4 +113,59 @@ class GetAllLeafRevisionsAndBulkImportTests {
 		val winning = checkNotNull(targetClient.get(id, RevisionedDoc::class.java, Option.CONFLICTS))
 		assertEquals(1, winning.conflicts?.size)
 	}
+
+	@Test
+	fun testGetBulkByIdsAndRevsWithNullRevReturnsEveryLeafRevision() = runBlocking {
+		val id = UUID.randomUUID().toString()
+		val created = sourceClient.create(RevisionedDoc(id = id, value = "root"), RevisionedDoc::class.java)
+		val (leafA, leafB) = createConflictingLeaves(sourceClient, id, checkNotNull(created.rev))
+
+		// A null rev is the batched equivalent of open_revs=all: it returns every leaf, not just the winner.
+		val leaves = sourceClient.getBulkByIdsAndRevs(listOf(id to null), RevisionedDoc::class.java)
+
+		assertEquals(2, leaves.size)
+		assertEquals(setOf(leafA.rev, leafB.rev), leaves.map { it.rev }.toSet())
+		assertEquals(setOf("A", "B"), leaves.map { it.value }.toSet())
+		leaves.forEach { assertNotNull(it.revisions) }
+	}
+
+	@Test
+	fun testGetBulkByIdsAndRevsFetchesExactlyTheRequestedRevisions() = runBlocking {
+		val id = UUID.randomUUID().toString()
+		val created = sourceClient.create(RevisionedDoc(id = id, value = "root"), RevisionedDoc::class.java)
+		val (leafA, leafB) = createConflictingLeaves(sourceClient, id, checkNotNull(created.rev))
+
+		val fetched = sourceClient.getBulkByIdsAndRevs(
+			listOf(id to checkNotNull(leafA.rev), id to checkNotNull(leafB.rev)),
+			RevisionedDoc::class.java,
+		)
+
+		assertEquals(2, fetched.size)
+		assertEquals(setOf(leafA.rev, leafB.rev), fetched.map { it.rev }.toSet())
+		assertEquals(setOf("A", "B"), fetched.map { it.value }.toSet())
+		fetched.forEach { assertNotNull(it.revisions) }
+	}
+
+	@Test
+	fun testBatchedNullRevFetchMatchesOneCallPerDocument() = runBlocking {
+		val plainId = UUID.randomUUID().toString()
+		sourceClient.create(RevisionedDoc(id = plainId, value = "plain"), RevisionedDoc::class.java)
+
+		val conflictId = UUID.randomUUID().toString()
+		val created = sourceClient.create(RevisionedDoc(id = conflictId, value = "root"), RevisionedDoc::class.java)
+		createConflictingLeaves(sourceClient, conflictId, checkNotNull(created.rev))
+
+		val ids = listOf(plainId, conflictId)
+
+		// The slow, already-proven-correct path: one getAllLeafRevisions call per document.
+		val expected = ids.flatMap { sourceClient.getAllLeafRevisions(it, RevisionedDoc::class.java) }
+			.map { it.id to it.rev }.toSet()
+
+		// The batched path this test is meant to validate: one request for the whole set of ids, regardless
+		// of how many there are.
+		val actual = sourceClient.getBulkByIdsAndRevs(ids.map { it to null }, RevisionedDoc::class.java)
+			.map { it.id to it.rev }.toSet()
+
+		assertEquals(expected, actual)
+	}
 }
