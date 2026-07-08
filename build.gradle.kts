@@ -65,6 +65,16 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Forwarded so a locally-running CouchDB on the default port doesn't collide with this project's own
+    // ephemeral test container (see DockerSetupListener) - unset by default, so behavior is unchanged unless
+    // explicitly overridden, e.g. -Dkrouch.test.couchdb.port=25984
+    listOf(
+        "krouch.test.couchdb.port",
+        "krouch.test.couchdb.server.url",
+        "krouch.test.couchdb.username",
+        "krouch.test.couchdb.password",
+        "krouch.test.couchdb.database.name",
+    ).forEach { key -> System.getProperty(key)?.let { systemProperty(key, it) } }
 }
 
 repositories {
