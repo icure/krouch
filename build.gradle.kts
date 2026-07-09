@@ -25,7 +25,7 @@ val mavenReleasesRepository: String by project
 
 val kotlinVersion = "2.2.21"
 val kotlinCoroutinesVersion = "1.8.1"
-val asyncHttpVersion = "0.2.23-g050f3d219b"
+val asyncHttpVersion = "0.2.27-g528cb8c312"
 val jacksonVersion = "2.19.1"
 val nettyVersion = "4.1.122.Final"
 val reactorNettyVersion = "1.2.7"
