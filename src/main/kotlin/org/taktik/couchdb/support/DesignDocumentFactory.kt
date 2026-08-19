@@ -91,29 +91,46 @@ class DesignDocumentFactory<T : Any> private constructor(
 			val (name, partition) = nameAndPartition.split("-", limit = 2)
 			generateFrom(
 				designDocEntityName = name,
-				targetPartition = partition,
+				targetPartition = TargetPartition.Partition(partition),
 				metaDataSource = metaDataSource,
 				useVersioning = useVersioning
 			)
 		} else {
 			generateFrom(
 				designDocEntityName = nameAndPartition,
-				targetPartition = null,
+				targetPartition = TargetPartition.All,
 				metaDataSource = metaDataSource,
 				useVersioning = useVersioning
 			)
 		}
 	}
 
+	sealed interface TargetPartition {
+		/**
+		 * Generates design docs for all partitions
+		 */
+		data object All : TargetPartition
+
+		/**
+		 * Generates only design docs with no partition
+		 */
+		data object Unpartitioned : TargetPartition
+
+		/**
+		 * Only generates design docs for target partition
+		 */
+		data class Partition(val name: String) : TargetPartition
+	}
+
 	/**
 	 * @param designDocEntityName the simple name of the Entity class that is target by the views in this ddoc.
-	 * @param targetPartition if not null, only the ddoc for this partition will be generated.
+	 * @param targetPartition specifies the partitions for which generate design docs.
 	 * @param metaDataSource the source that defines the views.
 	 * @param useVersioning whether views should be versioned.
 	 */
 	fun generateFrom(
 		designDocEntityName: String,
-		targetPartition: String?,
+		targetPartition: TargetPartition,
 		metaDataSource: T,
 		useVersioning: Boolean = true
 	): Set<DesignDocument> {

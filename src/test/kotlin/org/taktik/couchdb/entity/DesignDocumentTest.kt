@@ -135,7 +135,7 @@ class DesignDocumentTest {
 		)
 		val new = DesignDocumentFactory.getStdDesignDocumentFactory().generateFrom(
 			designDocEntityName = "User",
-			targetPartition = null,
+			targetPartition = DesignDocumentFactory.TargetPartition.All,
 			metaDataSource = dao,
 			useVersioning = true
 		)
@@ -149,24 +149,39 @@ class DesignDocumentTest {
 
 		val all = factory.generateFrom(
 			designDocEntityName = "User",
-			targetPartition = null,
+			targetPartition = DesignDocumentFactory.TargetPartition.All,
 			metaDataSource = dao,
-			useVersioning = true
+			useVersioning = false
 		)
-		// UserDAO declares views with secondaryPartition = "secondary-part", so the full generation
-		// must contain more than just the main ddoc.
-		assertTrue(all.size > 1)
+		assertEquals(
+			listOf("_design/User", "_design/User-secondary-part"),
+			all.map { it.id }
+		)
+
+		val unpartitioned = factory.generateFrom(
+			designDocEntityName = "User",
+			targetPartition = DesignDocumentFactory.TargetPartition.Unpartitioned,
+			metaDataSource = dao,
+			useVersioning = false
+		)
+		assertEquals(
+			listOf("_design/User"),
+			unpartitioned.map { it.id }
+		)
 
 		val filtered = factory.generateFrom(
 			designDocEntityName = "User",
-			targetPartition = "secondary-part",
+			targetPartition = DesignDocumentFactory.TargetPartition.Partition("secondary-part"),
 			metaDataSource = dao,
-			useVersioning = true
+			useVersioning = false
 		)
-
-		assertEquals(1, filtered.size)
-		val expected = all.single { it.id.startsWith("_design/User-secondary-part") }
-		assertEquals(expected, filtered.single())
+		assertEquals(
+			listOf("_design/User-secondary-part"),
+			filtered.map { it.id }
+		)
+		assertTrue(
+			filtered.single().views.size == 2
+		)
 	}
 
 	@Test
@@ -174,7 +189,7 @@ class DesignDocumentTest {
 		val dao = UserDAO()
 		val filtered = DesignDocumentFactory.getStdDesignDocumentFactory().generateFrom(
 			designDocEntityName = "User",
-			targetPartition = "non-existing-partition",
+			targetPartition = DesignDocumentFactory.TargetPartition.Partition("non-existing-partition"),
 			metaDataSource = dao,
 			useVersioning = true
 		)
