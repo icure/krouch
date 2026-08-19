@@ -13,18 +13,31 @@ abstract class DesignDocGenerator<T : Any> {
 	): Map<DesignDocId, Map<String, View>>
 	protected abstract fun generateDdocName(ddocId: DesignDocId, metadataSource: T, views: List<View>, useVersioning: Boolean): String
 
+	/**
+	 * @param entityName the simple name of the Entity class that is target by the views in this ddoc.
+	 * @param targetPartition if not null, only the ddoc for this partition will be generated.
+	 * @param views the output of the [ViewGenerator],
+	 * @param metadataSource the source that defines the views.
+	 * @param useVersioning whether views should be versioned.
+	 * @param initDdoc a function that takes id, partition and views and instantiates the design doc.
+	 */
 	fun splitViewsAndGenerateDesignDocs(
 		entityName: String,
+		targetPartition: String?,
 		views: Map<ViewGenerator.ViewKey, View>,
 		metadataSource: T,
 		useVersioning: Boolean,
 		initDdoc: (id: String, partition: String?, views: Map<String, View>) -> DesignDocument
-	): Set<DesignDocument> = splitViews(entityName, views, metadataSource).map { (ddocId, views) ->
-		initDdoc(
-			generateDdocName(ddocId, metadataSource, views.values.toList(), useVersioning),
-			ddocId.partition,
-			views
-		)
+	): Set<DesignDocument> = splitViews(entityName, views, metadataSource).mapNotNull { (ddocId, views) ->
+		if (targetPartition == null || targetPartition == ddocId.partition) {
+			initDdoc(
+				generateDdocName(ddocId, metadataSource, views.values.toList(), useVersioning),
+				ddocId.partition,
+				views
+			)
+		} else {
+			null
+		}
 	}.toSet()
 
 	data class DesignDocId(

@@ -135,7 +135,7 @@ class DesignDocumentTest {
 		)
 		val new = DesignDocumentFactory.getStdDesignDocumentFactory().generateFrom(
 			designDocEntityName = "User",
-			partition = null,
+			targetPartition = null,
 			metaDataSource = dao,
 			useVersioning = true
 		)

@@ -91,21 +91,32 @@ class DesignDocumentFactory<T : Any> private constructor(
 			val (name, partition) = nameAndPartition.split("-", limit = 2)
 			generateFrom(
 				designDocEntityName = name,
-				partition = partition,
+				targetPartition = partition,
 				metaDataSource = metaDataSource,
 				useVersioning = useVersioning
 			)
 		} else {
 			generateFrom(
 				designDocEntityName = nameAndPartition,
-				partition = null,
+				targetPartition = null,
 				metaDataSource = metaDataSource,
 				useVersioning = useVersioning
 			)
 		}
 	}
 
-	fun generateFrom(designDocEntityName: String, partition: String?, metaDataSource: T, useVersioning: Boolean = true): Set<DesignDocument> {
+	/**
+	 * @param designDocEntityName the simple name of the Entity class that is target by the views in this ddoc.
+	 * @param targetPartition if not null, only the ddoc for this partition will be generated.
+	 * @param metaDataSource the source that defines the views.
+	 * @param useVersioning whether views should be versioned.
+	 */
+	fun generateFrom(
+		designDocEntityName: String,
+		targetPartition: String?,
+		metaDataSource: T,
+		useVersioning: Boolean = true
+	): Set<DesignDocument> {
 		val views = viewGenerator.generateViews(
 			repository = metaDataSource,
 			ddocEntityName = designDocEntityName,
@@ -113,6 +124,7 @@ class DesignDocumentFactory<T : Any> private constructor(
 
 		return designDocGenerator.splitViewsAndGenerateDesignDocs(
 			entityName = designDocEntityName,
+			targetPartition = targetPartition,
 			views = views,
 			metadataSource = metaDataSource,
 			useVersioning = useVersioning
