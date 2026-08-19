@@ -141,4 +141,44 @@ class DesignDocumentTest {
 		)
 		assertEquals(original, new)
 	}
+
+	@Test
+	fun `generateFrom with a targetPartition only generates the ddoc for that partition`() {
+		val dao = UserDAO()
+		val factory = DesignDocumentFactory.getStdDesignDocumentFactory()
+
+		val all = factory.generateFrom(
+			designDocEntityName = "User",
+			targetPartition = null,
+			metaDataSource = dao,
+			useVersioning = true
+		)
+		// UserDAO declares views with secondaryPartition = "secondary-part", so the full generation
+		// must contain more than just the main ddoc.
+		assertTrue(all.size > 1)
+
+		val filtered = factory.generateFrom(
+			designDocEntityName = "User",
+			targetPartition = "secondary-part",
+			metaDataSource = dao,
+			useVersioning = true
+		)
+
+		assertEquals(1, filtered.size)
+		val expected = all.single { it.id.startsWith("_design/User-secondary-part") }
+		assertEquals(expected, filtered.single())
+	}
+
+	@Test
+	fun `generateFrom with a targetPartition that has no matching views generates no ddoc`() {
+		val dao = UserDAO()
+		val filtered = DesignDocumentFactory.getStdDesignDocumentFactory().generateFrom(
+			designDocEntityName = "User",
+			targetPartition = "non-existing-partition",
+			metaDataSource = dao,
+			useVersioning = true
+		)
+
+		assertTrue(filtered.isEmpty())
+	}
 }
