@@ -85,6 +85,7 @@ import org.taktik.couchdb.entity.ActiveTask
 import org.taktik.couchdb.entity.AttachmentResult
 import org.taktik.couchdb.entity.Change
 import org.taktik.couchdb.entity.ChangesChunk
+import org.taktik.couchdb.entity.ChangesPage
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
 import org.taktik.couchdb.entity.DesignDocumentResult
 import org.taktik.couchdb.entity.EntityExceptionBehaviour
@@ -595,6 +596,20 @@ interface Client {
         clazz: Class<T>,
         requestId: String? = null,
     ): List<T>
+
+    /**
+     * One page of the database's `_changes` feed (`feed=normal`), unfiltered and without document bodies:
+     * every row names a document id, the `seq` of its latest change, whether it is deleted, and - with the
+     * default `style=all_docs` - every one of its leaf revisions. This is the only CouchDB endpoint that
+     * enumerates deleted documents (tombstones), which `_all_docs` never lists. Page by passing the returned
+     * [ChangesPage.lastSeq] as the next [since]; an empty [ChangesPage.results] means the feed is exhausted.
+     */
+    suspend fun getChangesPage(
+        since: String,
+        limit: Int,
+        style: String = "all_docs",
+        requestId: String? = null,
+    ): ChangesPage
 }
 
 private const val NOT_FOUND_ERROR = "not_found"
@@ -932,6 +947,17 @@ class ClientImpl(
         }
         val response = request.getCouchDbResponse(typeRef, nullIf404 = true)
         return response?.results?.flatMap { it.docs }?.mapNotNull { it.ok } ?: emptyList()
+    }
+
+    override suspend fun getChangesPage(since: String, limit: Int, style: String, requestId: String?): ChangesPage {
+        val uri = dbURI.addSinglePathComponent("_changes")
+            .param("feed", "normal")
+            .param("style", style)
+            .param("since", since)
+            .param("limit", limit.toString())
+        return checkNotNull(newRequest(uri, requestId = requestId).getCouchDbResponse<ChangesPage>()) {
+            "empty _changes response"
+        }
     }
 
     private data class AllDocsViewValue(val rev: String, val deleted: Boolean? = null)
