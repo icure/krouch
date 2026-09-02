@@ -32,6 +32,7 @@ import org.taktik.couchdb.DockerSetupListener.Companion.couchDbPassword
 import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUrl
 import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUsername
 import org.taktik.couchdb.entity.ChangeRow
+import org.taktik.couchdb.entity.ChangesStyle
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -94,6 +95,28 @@ class GetChangesPageTests {
 		val row = rows.single { it.id == id }
 		assertFalse(row.deleted)
 		assertEquals(setOf(leafA.rev, leafB.rev), row.revs.toSet(), "style=all_docs must list both conflicting leaves")
+	}
+
+	@Test
+	fun testMainOnlyStyleListsTheWinningLeafAlone() = runBlocking {
+		val id = UUID.randomUUID().toString()
+		val created = client.create(RevisionedDoc(id = id, value = "root"), RevisionedDoc::class.java)
+		val parentGeneration = checkNotNull(created.rev).substringBefore("-").toInt()
+		val parentHash = created.rev!!.substringAfter("-")
+		val leafA = RevisionedDoc(id, "${parentGeneration + 1}-aaaa1111aaaa1111aaaa1111aaaa1111", revisions = DocRevisions(parentGeneration + 1, listOf("aaaa1111aaaa1111aaaa1111aaaa1111", parentHash)), value = "A")
+		val leafB = RevisionedDoc(id, "${parentGeneration + 1}-bbbb2222bbbb2222bbbb2222bbbb2222", revisions = DocRevisions(parentGeneration + 1, listOf("bbbb2222bbbb2222bbbb2222bbbb2222", parentHash)), value = "B")
+		client.bulkImportWithoutNewEdits(listOf(leafA, leafB), RevisionedDoc::class.java).toList()
+
+		var since = "0"
+		var row: ChangeRow? = null
+		while (row == null) {
+			val page = client.getChangesPage(since, 50, ChangesStyle.MAIN_ONLY)
+			if (page.results.isEmpty()) break
+			row = page.results.firstOrNull { it.id == id }
+			since = page.lastSeq
+		}
+
+		assertEquals(listOf(leafB.rev), checkNotNull(row).revs, "main_only lists only the winning leaf (highest hash on equal generation)")
 	}
 
 	@Test

@@ -86,6 +86,7 @@ import org.taktik.couchdb.entity.AttachmentResult
 import org.taktik.couchdb.entity.Change
 import org.taktik.couchdb.entity.ChangesChunk
 import org.taktik.couchdb.entity.ChangesPage
+import org.taktik.couchdb.entity.ChangesStyle
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
 import org.taktik.couchdb.entity.DesignDocumentResult
 import org.taktik.couchdb.entity.EntityExceptionBehaviour
@@ -600,14 +601,14 @@ interface Client {
     /**
      * One page of the database's `_changes` feed (`feed=normal`), unfiltered and without document bodies:
      * every row names a document id, the `seq` of its latest change, whether it is deleted, and - with the
-     * default `style=all_docs` - every one of its leaf revisions. This is the only CouchDB endpoint that
+     * default [ChangesStyle.ALL_DOCS] - every one of its leaf revisions. This is the only CouchDB endpoint that
      * enumerates deleted documents (tombstones), which `_all_docs` never lists. Page by passing the returned
      * [ChangesPage.lastSeq] as the next [since]; an empty [ChangesPage.results] means the feed is exhausted.
      */
     suspend fun getChangesPage(
         since: String,
         limit: Int,
-        style: String = "all_docs",
+        style: ChangesStyle = ChangesStyle.ALL_DOCS,
         requestId: String? = null,
     ): ChangesPage
 }
@@ -949,10 +950,10 @@ class ClientImpl(
         return response?.results?.flatMap { it.docs }?.mapNotNull { it.ok } ?: emptyList()
     }
 
-    override suspend fun getChangesPage(since: String, limit: Int, style: String, requestId: String?): ChangesPage {
+    override suspend fun getChangesPage(since: String, limit: Int, style: ChangesStyle, requestId: String?): ChangesPage {
         val uri = dbURI.addSinglePathComponent("_changes")
             .param("feed", "normal")
-            .param("style", style)
+            .param("style", style.value)
             .param("since", since)
             .param("limit", limit.toString())
         return checkNotNull(newRequest(uri, requestId = requestId).getCouchDbResponse<ChangesPage>()) {

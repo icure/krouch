@@ -40,6 +40,14 @@ data class ChangesChunk<out T>(
     val pending: Long,
     val results: List<Change<T>>
 )
+/** The `style` of a `_changes` request: which leaf revisions each row lists. */
+enum class ChangesStyle(val value: String) {
+    /** Every leaf revision of the document (open and deleted conflicts alike). */
+    ALL_DOCS("all_docs"),
+    /** The winning revision only (CouchDB's default). */
+    MAIN_ONLY("main_only"),
+}
+
 /** One `changes[]` entry of a `_changes` row: a leaf revision id. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ChangeRevision(val rev: String)
@@ -47,7 +55,7 @@ data class ChangeRevision(val rev: String)
 /**
  * One row of the unfiltered, document-less `_changes` feed (see `Client.getChangesPage`): the document's id,
  * the `seq` of its latest change, whether it is deleted, and its leaf revisions (every leaf with
- * `style=all_docs`, only the winning one with `main_only`).
+ * [ChangesStyle.ALL_DOCS], only the winning one with [ChangesStyle.MAIN_ONLY]).
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ChangeRow(
