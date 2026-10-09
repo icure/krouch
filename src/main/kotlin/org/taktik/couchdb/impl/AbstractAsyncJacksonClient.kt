@@ -141,7 +141,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
-abstract class AbstractJacksonClient(
+abstract class AbstractAsyncJacksonClient(
 	private val httpClient: WebClient,
 	private val couchDBUri: java.net.URI,
 	dbName: String,

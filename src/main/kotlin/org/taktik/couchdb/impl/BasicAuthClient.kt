@@ -18,7 +18,7 @@ class BasicAuthClient(
 	headerHandlers: Map<String, HeaderHandler> = mapOf(),
 	timingHandler: ((timing: Long, headers: Map<String, List<String>>) -> Mono<Unit>)? = null,
 	strictMode: Boolean = false,
-) : AbstractJacksonClient(
+) : AbstractAsyncJacksonClient(
 	httpClient = httpClient,
 	couchDBUri = couchDBUri,
 	dbName = dbName,
