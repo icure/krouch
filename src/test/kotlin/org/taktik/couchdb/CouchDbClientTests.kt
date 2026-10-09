@@ -56,6 +56,12 @@ import org.taktik.couchdb.dao.CodeDAO
 import org.taktik.couchdb.entity.*
 import org.taktik.couchdb.exception.CouchDbConflictException
 import org.taktik.couchdb.exception.CouchDbException
+import org.taktik.couchdb.impl.BasicAuthClient
+import org.taktik.couchdb.queryresult.Offset
+import org.taktik.couchdb.queryresult.TotalCount
+import org.taktik.couchdb.queryresult.ViewRow
+import org.taktik.couchdb.queryresult.ViewRowWithDoc
+import org.taktik.couchdb.queryresult.ViewRowWithMalformedDoc
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URI
@@ -79,12 +85,12 @@ class CouchDbClientTests {
 
 	private val testResponseAsString = URL("https://jsonplaceholder.typicode.com/posts").openStream().use { it.readBytes().toString(StandardCharsets.UTF_8) }
 	private val httpClient = NettyWebClient()
-	private val client = ClientImpl(
-		httpClient,
-		URI(databaseHost),
-		databaseName,
-		userName,
-		password,
+	private val client = BasicAuthClient(
+		httpClient = httpClient,
+		couchDBUri = URI(databaseHost),
+		dbName = databaseName,
+		username = userName,
+		password = password,
 		strictMode = true
 	)
 
@@ -300,12 +306,12 @@ class CouchDbClientTests {
 
 	@Test
 	fun testDestroyDatabase() = runBlocking {
-		val client = ClientImpl(
-			httpClient,
-			URI(databaseHost),
-			"icure-${UUID.randomUUID()}",
-			userName,
-			password
+		val client = BasicAuthClient(
+			httpClient = httpClient,
+			couchDBUri = URI(databaseHost),
+			dbName = "icure-${UUID.randomUUID()}",
+			username = userName,
+			password = password
 		)
 		client.create(1,1)
 		delay(1000L.milliseconds)
@@ -314,12 +320,12 @@ class CouchDbClientTests {
 
 	@Test
 	fun testExists2() = runBlocking {
-		val client = ClientImpl(
-			httpClient,
-			URI(databaseHost),
-			UUID.randomUUID().toString(),
-			userName,
-			password
+		val client = BasicAuthClient(
+			httpClient = httpClient,
+			couchDBUri = URI(databaseHost),
+			dbName = UUID.randomUUID().toString(),
+			username = userName,
+			password = password
 		)
 		assertFalse(client.exists())
 	}
@@ -758,12 +764,12 @@ class CouchDbClientTests {
 
 	@Test
 	fun testGetChanges(): Unit = runBlocking {
-		val client = ClientImpl(
-			httpClient,
-			URI(databaseHost),
-			"changestestdb-${System.currentTimeMillis()}",
-			userName,
-			password,
+		val client = BasicAuthClient(
+			httpClient = httpClient,
+			couchDBUri = URI(databaseHost),
+			dbName = "changestestdb-${System.currentTimeMillis()}",
+			username = userName,
+			password = password,
 			strictMode = true
 		)
 		client.create(q = 1, n = 1)

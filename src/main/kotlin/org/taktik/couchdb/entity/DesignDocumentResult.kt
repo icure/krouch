@@ -18,7 +18,7 @@
 package org.taktik.couchdb.entity
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import org.taktik.couchdb.ViewRowNoDoc
+import org.taktik.couchdb.queryresult.ViewRowNoDoc
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class DesignDocumentResult(val rows: List<ViewRowNoDoc<String, RevOnly>>)

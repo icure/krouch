@@ -10,7 +10,6 @@ import org.taktik.couchdb.annotation.Shows
 import org.taktik.couchdb.annotation.UpdateHandler
 import org.taktik.couchdb.annotation.UpdateHandlers
 import org.taktik.couchdb.entity.DesignDocument
-import org.taktik.couchdb.support.generators.views.ViewGenerator
 import java.io.FileNotFoundException
 
 class LegacyDesignDocumentFactory<T : Any>(

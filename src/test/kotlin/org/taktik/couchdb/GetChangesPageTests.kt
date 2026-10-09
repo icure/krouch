@@ -18,10 +18,12 @@
 package org.taktik.couchdb
 
 import io.icure.asyncjacksonhttpclient.netty.NettyWebClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -33,12 +35,14 @@ import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUrl
 import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUsername
 import org.taktik.couchdb.entity.ChangeRow
 import org.taktik.couchdb.entity.ChangesStyle
+import org.taktik.couchdb.impl.BasicAuthClient
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.util.Base64
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * [Client.getChangesPage]: the unfiltered, document-less `_changes` feed - the only CouchDB endpoint that
@@ -48,7 +52,14 @@ import java.util.UUID
 class GetChangesPageTests {
 	private val httpClient = NettyWebClient()
 	private val dbName = "krouch-test-changes-page"
-	private val client = ClientImpl(httpClient, URI(couchDbUrl), dbName, couchDbUsername, couchDbPassword, strictMode = true)
+	private val client = BasicAuthClient(
+		httpClient = httpClient,
+		couchDBUri = URI(couchDbUrl),
+		dbName = dbName,
+		username = couchDbUsername,
+		password = couchDbPassword,
+		strictMode = true
+	)
 
 	@BeforeEach
 	fun setupDatabase() = runBlocking {
@@ -85,7 +96,7 @@ class GetChangesPageTests {
 		val id = UUID.randomUUID().toString()
 		val created = client.create(RevisionedDoc(id = id, value = "root"), RevisionedDoc::class.java)
 		val parentGeneration = checkNotNull(created.rev).substringBefore("-").toInt()
-		val parentHash = created.rev!!.substringAfter("-")
+		val parentHash = created.rev.substringAfter("-")
 		val leafA = RevisionedDoc(id, "${parentGeneration + 1}-aaaa1111aaaa1111aaaa1111aaaa1111", revisions = DocRevisions(parentGeneration + 1, listOf("aaaa1111aaaa1111aaaa1111aaaa1111", parentHash)), value = "A")
 		val leafB = RevisionedDoc(id, "${parentGeneration + 1}-bbbb2222bbbb2222bbbb2222bbbb2222", revisions = DocRevisions(parentGeneration + 1, listOf("bbbb2222bbbb2222bbbb2222bbbb2222", parentHash)), value = "B")
 		client.bulkImportWithoutNewEdits(listOf(leafA, leafB), RevisionedDoc::class.java).toList()
@@ -102,7 +113,7 @@ class GetChangesPageTests {
 		val id = UUID.randomUUID().toString()
 		val created = client.create(RevisionedDoc(id = id, value = "root"), RevisionedDoc::class.java)
 		val parentGeneration = checkNotNull(created.rev).substringBefore("-").toInt()
-		val parentHash = created.rev!!.substringAfter("-")
+		val parentHash = created.rev.substringAfter("-")
 		val leafA = RevisionedDoc(id, "${parentGeneration + 1}-aaaa1111aaaa1111aaaa1111aaaa1111", revisions = DocRevisions(parentGeneration + 1, listOf("aaaa1111aaaa1111aaaa1111aaaa1111", parentHash)), value = "A")
 		val leafB = RevisionedDoc(id, "${parentGeneration + 1}-bbbb2222bbbb2222bbbb2222bbbb2222", revisions = DocRevisions(parentGeneration + 1, listOf("bbbb2222bbbb2222bbbb2222bbbb2222", parentHash)), value = "B")
 		client.bulkImportWithoutNewEdits(listOf(leafA, leafB), RevisionedDoc::class.java).toList()
@@ -173,11 +184,13 @@ class GetChangesPageTests {
 		val compact = HttpRequest.newBuilder(URI.create("$couchDbUrl/$dbName/_compact"))
 			.header("Authorization", auth).header("Content-Type", "application/json")
 			.POST(HttpRequest.BodyPublishers.noBody()).build()
-		assertEquals(202, http.send(compact, HttpResponse.BodyHandlers.ofString()).statusCode())
+		withContext(Dispatchers.IO) {
+			assertEquals(202, http.send(compact, HttpResponse.BodyHandlers.ofString()).statusCode())
+		}
 		val info = HttpRequest.newBuilder(URI.create("$couchDbUrl/$dbName")).header("Authorization", auth).GET().build()
 		val deadline = System.currentTimeMillis() + 30_000
 		while (System.currentTimeMillis() < deadline) {
-			delay(200)
+			delay(200.milliseconds)
 			if (!http.send(info, HttpResponse.BodyHandlers.ofString()).body().contains("\"compact_running\":true")) return
 		}
 		error("compaction of $dbName did not finish within 30s")

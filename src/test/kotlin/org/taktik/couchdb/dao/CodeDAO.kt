@@ -22,7 +22,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import org.taktik.couchdb.Client
 import org.taktik.couchdb.Code
-import org.taktik.couchdb.ViewRowWithDoc
+import org.taktik.couchdb.queryresult.ViewRowWithDoc
 import org.taktik.couchdb.annotation.View
 import org.taktik.couchdb.annotation.Views
 import org.taktik.couchdb.dao.impl.GenericDAOImpl
