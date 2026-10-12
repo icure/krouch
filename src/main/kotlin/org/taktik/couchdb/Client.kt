@@ -34,7 +34,7 @@ import org.taktik.couchdb.entity.Scheduler
 import org.taktik.couchdb.entity.Security
 import org.taktik.couchdb.entity.ShardInfo
 import org.taktik.couchdb.entity.ViewQuery
-import org.taktik.couchdb.impl.AbstractAsyncJacksonClient
+import org.taktik.couchdb.impl.ClientImpl
 import org.taktik.couchdb.mango.MangoQuery
 import org.taktik.couchdb.queryresult.ViewQueryResultEvent
 import org.taktik.couchdb.response.BulkUpdateResult
@@ -273,7 +273,7 @@ interface Client {
      * each with its `_revisions` ancestor-chain embedded (so it can be replayed elsewhere with
      * [bulkImportWithoutNewEdits]). Backed by CouchDB's `open_revs=all&revs=true`.
      *
-     * Default implementation throws: only [AbstractAsyncJacksonClient] provides a real implementation, so implementers that
+     * Default implementation throws: only [ClientImpl] provides a real implementation, so implementers that
      * delegate to [Client] without overriding this (e.g. decorators over multiple clients) keep compiling and
      * simply don't support this operation unless they choose to override it too.
      */

@@ -56,7 +56,7 @@ import org.taktik.couchdb.dao.CodeDAO
 import org.taktik.couchdb.entity.*
 import org.taktik.couchdb.exception.CouchDbConflictException
 import org.taktik.couchdb.exception.CouchDbException
-import org.taktik.couchdb.impl.BasicAuthClient
+import org.taktik.couchdb.impl.ClientImpl
 import org.taktik.couchdb.queryresult.Offset
 import org.taktik.couchdb.queryresult.TotalCount
 import org.taktik.couchdb.queryresult.ViewRow
@@ -85,7 +85,7 @@ class CouchDbClientTests {
 
 	private val testResponseAsString = URL("https://jsonplaceholder.typicode.com/posts").openStream().use { it.readBytes().toString(StandardCharsets.UTF_8) }
 	private val httpClient = NettyWebClient()
-	private val client = BasicAuthClient(
+	private val client = ClientImpl(
 		httpClient = httpClient,
 		couchDBUri = URI(databaseHost),
 		dbName = databaseName,
@@ -306,7 +306,7 @@ class CouchDbClientTests {
 
 	@Test
 	fun testDestroyDatabase() = runBlocking {
-		val client = BasicAuthClient(
+		val client = ClientImpl(
 			httpClient = httpClient,
 			couchDBUri = URI(databaseHost),
 			dbName = "icure-${UUID.randomUUID()}",
@@ -320,7 +320,7 @@ class CouchDbClientTests {
 
 	@Test
 	fun testExists2() = runBlocking {
-		val client = BasicAuthClient(
+		val client = ClientImpl(
 			httpClient = httpClient,
 			couchDBUri = URI(databaseHost),
 			dbName = UUID.randomUUID().toString(),
@@ -764,7 +764,7 @@ class CouchDbClientTests {
 
 	@Test
 	fun testGetChanges(): Unit = runBlocking {
-		val client = BasicAuthClient(
+		val client = ClientImpl(
 			httpClient = httpClient,
 			couchDBUri = URI(databaseHost),
 			dbName = "changestestdb-${System.currentTimeMillis()}",

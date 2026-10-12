@@ -7,6 +7,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 
 class DockerSetupListener : LauncherSessionListener {
@@ -15,6 +16,8 @@ class DockerSetupListener : LauncherSessionListener {
 		val couchDbUrl: String = System.getProperty("krouch.test.couchdb.server.url", "http://localhost:$couchDbPort")
 		val couchDbUsername: String = System.getProperty("krouch.test.couchdb.username", "icure")
 		val couchDbPassword: String = System.getProperty("krouch.test.couchdb.password", "icure")
+		/** HMAC-SHA256 key CouchDB is configured with to validate JWTs (see [enableJwtAuthentication]). */
+		val couchDbJwtSecret: ByteArray = "krouch-test-jwt-secret".toByteArray()
 		private const val CONTAINER_NAME = "couchdb-krouch-test"
 		private const val COUCH_DB_VERSION = "3.4.2"
 	}
@@ -25,6 +28,33 @@ class DockerSetupListener : LauncherSessionListener {
 			.inheritIO().start().waitFor(1, TimeUnit.MINUTES)
 		ProcessBuilder("/usr/local/bin/docker run -p $couchDbPort:5984 -e COUCHDB_USER=$couchDbUsername -e COUCHDB_PASSWORD=$couchDbPassword --name $CONTAINER_NAME -d couchdb:$COUCH_DB_VERSION".split(" "))
 			.inheritIO().start().waitFor(1, TimeUnit.MINUTES)
+		awaitReady()
+		enableJwtAuthentication()
+	}
+
+	/**
+	 * JWT authentication is off by default, and CouchDB only reads `authentication_handlers` at startup: register the
+	 * handler and the HMAC key, then restart the node so the handler is active before any test runs.
+	 */
+	private fun enableJwtAuthentication() {
+		val client = HttpClient.newHttpClient()
+		val auth = "Basic " + Base64.getEncoder().encodeToString("$couchDbUsername:$couchDbPassword".toByteArray())
+		fun send(path: String, method: String, body: String) {
+			val request = HttpRequest.newBuilder(URI.create("$couchDbUrl$path"))
+				.header("Authorization", auth).header("Content-Type", "application/json")
+				.method(method, HttpRequest.BodyPublishers.ofString(body)).build()
+			val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+			check(response.statusCode() == 200) { "$method $path failed: ${response.statusCode()} ${response.body()}" }
+		}
+		send(
+			"/_node/_local/_config/chttpd/authentication_handlers",
+			"PUT",
+			"\"{chttpd_auth, cookie_authentication_handler}, {chttpd_auth, jwt_authentication_handler}, {chttpd_auth, default_authentication_handler}\""
+		)
+		send("/_node/_local/_config/jwt_keys/hmac:_default", "PUT", "\"${Base64.getEncoder().encodeToString(couchDbJwtSecret)}\"")
+		send("/_node/_local/_restart", "POST", "")
+		// The restart is asynchronous: give the node time to go down before polling for it to come back up.
+		Thread.sleep(1000)
 		awaitReady()
 	}
 

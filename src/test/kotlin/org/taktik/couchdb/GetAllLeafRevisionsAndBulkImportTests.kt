@@ -30,7 +30,7 @@ import org.taktik.couchdb.DockerSetupListener.Companion.couchDbPassword
 import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUrl
 import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUsername
 import org.taktik.couchdb.entity.Option
-import org.taktik.couchdb.impl.BasicAuthClient
+import org.taktik.couchdb.impl.ClientImpl
 import java.net.URI
 import java.util.UUID
 
@@ -40,7 +40,7 @@ class GetAllLeafRevisionsAndBulkImportTests {
 	private val sourceDbName = "krouch-test-leaf-revisions-source"
 	private val targetDbName = "krouch-test-leaf-revisions-target"
 
-	private val sourceClient = BasicAuthClient(
+	private val sourceClient = ClientImpl(
 		httpClient = httpClient,
 		couchDBUri = URI(couchDbUrl),
 		dbName = sourceDbName,
@@ -48,7 +48,7 @@ class GetAllLeafRevisionsAndBulkImportTests {
 		password = couchDbPassword,
 		strictMode = true
 	)
-	private val targetClient = BasicAuthClient(
+	private val targetClient = ClientImpl(
 		httpClient = httpClient,
 		couchDBUri = URI(couchDbUrl),
 		dbName = targetDbName,

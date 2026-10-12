@@ -35,7 +35,7 @@ import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUrl
 import org.taktik.couchdb.DockerSetupListener.Companion.couchDbUsername
 import org.taktik.couchdb.entity.ChangeRow
 import org.taktik.couchdb.entity.ChangesStyle
-import org.taktik.couchdb.impl.BasicAuthClient
+import org.taktik.couchdb.impl.ClientImpl
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -52,7 +52,7 @@ import kotlin.time.Duration.Companion.milliseconds
 class GetChangesPageTests {
 	private val httpClient = NettyWebClient()
 	private val dbName = "krouch-test-changes-page"
-	private val client = BasicAuthClient(
+	private val client = ClientImpl(
 		httpClient = httpClient,
 		couchDBUri = URI(couchDbUrl),
 		dbName = dbName,

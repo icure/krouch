@@ -65,6 +65,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.fold
@@ -100,6 +101,7 @@ import org.taktik.couchdb.exception.CouchDbException
 import org.taktik.couchdb.exception.NoHeartbeatException
 import org.taktik.couchdb.exception.SkippedQueryException
 import org.taktik.couchdb.exception.ViewResultException
+import org.taktik.couchdb.impl.auth.CouchDbAuthentication
 import org.taktik.couchdb.impl.request.BulkDeleteRequest
 import org.taktik.couchdb.impl.request.BulkGetRequest
 import org.taktik.couchdb.impl.request.BulkGetRequestDoc
@@ -141,7 +143,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
-abstract class AbstractAsyncJacksonClient(
+class ClientImpl(
 	private val httpClient: WebClient,
 	private val couchDBUri: java.net.URI,
 	dbName: String,
@@ -149,7 +151,7 @@ abstract class AbstractAsyncJacksonClient(
 	 * Function to retrieve credentials as pair username-password.
 	 * Credentials returned by this provider may change over time.
 	 */
-	protected val credentialsProvider: () -> Pair<String, String>,
+	private val credentialsProvider: suspend () -> CouchDbAuthentication,
 	private val objectMapper: ObjectMapper = ObjectMapper().also { it.registerKotlinModule() },
 	private val headerHandlers: Map<String, HeaderHandler> = mapOf(),
 	private val timingHandler: ((timing: Long, headers: Map<String, List<String>>) -> Mono<Unit>)? = null,
@@ -158,6 +160,30 @@ abstract class AbstractAsyncJacksonClient(
 	private val dbURI = couchDBUri.addSinglePathComponent(dbName)
 	private val log = LoggerFactory.getLogger(javaClass.name)
 	private val shardsCache = AtomicReference<Deferred<ShardInfo>?>(null)
+
+	/**
+	 * Alternative constructor for client with constant username and password.
+	 */
+	constructor(
+		httpClient: WebClient,
+		couchDBUri: java.net.URI,
+		dbName: String,
+		username: String,
+		password: String,
+		objectMapper: ObjectMapper = ObjectMapper().also { it.registerKotlinModule() },
+		headerHandlers: Map<String, HeaderHandler> = mapOf(),
+		timingHandler: ((timing: Long, headers: Map<String, List<String>>) -> Mono<Unit>)? = null,
+		strictMode: Boolean = false
+	) : this(
+		httpClient = httpClient,
+		couchDBUri = couchDBUri,
+		dbName = dbName,
+		credentialsProvider = { CouchDbAuthentication.Basic(username = username, password = password) },
+		objectMapper = objectMapper,
+		headerHandlers = headerHandlers,
+		timingHandler = timingHandler,
+		strictMode = strictMode
+	)
 
 	override suspend fun shards(ignoreCache: Boolean): ShardInfo = coroutineScope {
 		doGetCachedShards(ignoreCache, this)
@@ -365,7 +391,7 @@ abstract class AbstractAsyncJacksonClient(
 		return request.getCouchDbResponse(clazz, nullIf404 = true)
 	}
 
-	private fun makeAndValidateRequest(
+	private suspend fun makeAndValidateRequest(
 		id: String,
 		rev: String?,
 		options: Array<out Option>,
@@ -542,7 +568,7 @@ abstract class AbstractAsyncJacksonClient(
 		}
 	}
 
-	override fun getAttachment(id: String, attachmentId: String, rev: String?, requestId: String?): Flow<ByteBuffer> {
+	override fun getAttachment(id: String, attachmentId: String, rev: String?, requestId: String?): Flow<ByteBuffer> = flow {
 		require(id.isNotBlank()) { "Id cannot be blank" }
 		require(attachmentId.isNotBlank()) { "attachmentId cannot be blank" }
 		val request =
@@ -550,7 +576,9 @@ abstract class AbstractAsyncJacksonClient(
 				dbURI.addSinglePathComponent(id).addSinglePathComponent(attachmentId)
 					.let { u -> rev?.let { u.param("rev", it) } ?: u })
 
-		return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toBytesFlow()
+		emitAll(
+			request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toBytesFlow()
+		)
 	}
 
 	override suspend fun deleteAttachment(id: String, attachmentId: String, rev: String, requestId: String?): String {
@@ -1377,9 +1405,7 @@ abstract class AbstractAsyncJacksonClient(
 		}
 	}
 
-	protected abstract fun Request.authenticated(): Request
-
-	private fun newRequest(
+	private suspend fun newRequest(
 		uri: java.net.URI,
 		method: HttpMethod = HttpMethod.GET,
 		timeoutDuration: Duration? = null,
@@ -1387,10 +1413,13 @@ abstract class AbstractAsyncJacksonClient(
 	) =
 		httpClient.uri(uri)
 			.method(method, timeoutDuration)
-			.authenticated()
+			.let {
+				val authentication = credentialsProvider()
+				authentication.authenticate(it)
+			}
 			.let { requestId?.let { rid -> it.header("X-Couch-Request-ID", rid) } ?: it }
 
-	private fun newRequest(
+	private suspend fun newRequest(
 		uri: java.net.URI,
 		body: String,
 		method: HttpMethod = HttpMethod.POST,
@@ -1401,7 +1430,7 @@ abstract class AbstractAsyncJacksonClient(
 			.header(HttpHeaderNames.CONTENT_TYPE.toString(), "application/json")
 			.body(body)
 
-	private fun buildRequest(query: ViewQuery, timeoutDuration: Duration? = null, requestId: String? = null) =
+	private suspend fun buildRequest(query: ViewQuery, timeoutDuration: Duration? = null, requestId: String? = null) =
 		if (query.hasMultipleKeys()) {
 			newRequest(query.buildQuery(), query.keysAsJson(), requestId = requestId)
 		} else {
