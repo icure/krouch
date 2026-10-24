@@ -17,9 +17,6 @@
 
 package org.taktik.couchdb.entity
 
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
 import io.icure.asyncjacksonhttpclient.net.addSinglePathComponent
 import io.icure.asyncjacksonhttpclient.net.param
 import org.taktik.couchdb.util.Exceptions
@@ -35,7 +32,7 @@ data class ViewQuery(
         val viewName: String? = null,
         val listName: String? = null,
         val key: Any? = null,
-        val keys: List<Any?>? = null,
+        override val keys: List<Any?>? = null,
         val startKey: Any? = null,
         val startDocId: String? = null,
         val endKey: Any? = null,
@@ -46,13 +43,13 @@ data class ViewQuery(
         val isGroup: Boolean = false,
         val groupLevel: Int = NOT_SET,
         val isReduce: Boolean = true,
-        val isIncludeDocs: Boolean = false,
+        override val isIncludeDocs: Boolean = false,
         val isInclusiveEnd: Boolean = true,
         val isUpdateSeq: Boolean = false,
-        val ignoreNotFound: Boolean = false,
-        val skipIfViewDoesNotExist: Boolean = false,
+        override val ignoreNotFound: Boolean = false,
+        override val skipIfViewDoesNotExist: Boolean = false,
         private val staleOk: String? = null
-) {
+): ViewQueryLike() {
     private var cachedQuery: URI? = null
 
     fun isStaleOk(): Boolean {
@@ -154,9 +151,7 @@ data class ViewQuery(
     fun ignoreNotFound(value: Boolean) = copy(ignoreNotFound = value)
     fun skipIfViewDoesNotExist(value: Boolean) = copy(skipIfViewDoesNotExist = value)
 
-    fun hasMultipleKeys() = keys != null
-    fun keysAsJson() = keys?.let { keys -> DEFAULT_MAPPER.writeValueAsString(DEFAULT_MAPPER.createObjectNode().apply { putArray("keys").apply { keys.forEach { addPOJO(it) } } }) } ?: "{\"keys\":[]}"
-    fun buildQuery(): URI = cachedQuery ?: buildQueryURI().also { cachedQuery = it }
+    override fun buildQuery(): URI = cachedQuery ?: buildQueryURI().also { cachedQuery = it }
 
     fun buildQueryURI() = buildViewPath()
         .let { q -> key?.let { q.param("key", jsonEncode(it)) } ?: q }
@@ -202,10 +197,6 @@ data class ViewQuery(
     override fun toString(): String = try { buildQuery().toString() } catch (e:IllegalStateException) { "incomplete query" }
 
     companion object {
-        private val DEFAULT_MAPPER = ObjectMapper().apply {
-            configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
-            configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        }
         private const val ALL_DOCS_VIEW_NAME = "_all_docs"
         private const val NOT_SET = -1
     }

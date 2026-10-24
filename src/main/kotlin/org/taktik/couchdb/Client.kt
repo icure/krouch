@@ -85,8 +85,10 @@ import org.taktik.couchdb.entity.ChangesChunk
 import org.taktik.couchdb.entity.ChangesPage
 import org.taktik.couchdb.entity.ChangesStyle
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
+import org.taktik.couchdb.entity.DbsViewQuery
 import org.taktik.couchdb.entity.DesignDocumentResult
 import org.taktik.couchdb.entity.EntityExceptionBehaviour
+import org.taktik.couchdb.entity.FullDatabaseShardInfo
 import org.taktik.couchdb.entity.IdAndRev
 import org.taktik.couchdb.entity.Membership
 import org.taktik.couchdb.entity.Option
@@ -97,6 +99,7 @@ import org.taktik.couchdb.entity.Security
 import org.taktik.couchdb.entity.ShardInfo
 import org.taktik.couchdb.entity.Versionable
 import org.taktik.couchdb.entity.ViewQuery
+import org.taktik.couchdb.entity.ViewQueryLike
 import org.taktik.couchdb.exception.CouchDbConflictException
 import org.taktik.couchdb.exception.CouchDbException
 import org.taktik.couchdb.exception.SkippedQueryException
@@ -610,6 +613,8 @@ interface Client {
         style: ChangesStyle = ChangesStyle.ALL_DOCS,
         requestId: String? = null,
     ): ChangesPage
+
+	fun dbs(ids: List<String>, timeout: Duration? = null, requestId: String? = null): Flow<FullDatabaseShardInfo>
 }
 
 private const val NOT_FOUND_ERROR = "not_found"
@@ -1399,11 +1404,28 @@ class ClientImpl(
         timeoutDuration: Duration?,
         requestId: String?,
         onEntityException: EntityExceptionBehaviour
+    ): Flow<ViewQueryResultEvent> = doQueryView(
+        dbQuery = query.dbPath(dbURI.toString()),
+        keyType = keyType,
+        valueType = valueType,
+        docType = docType,
+        timeoutDuration = timeoutDuration,
+        requestId = requestId,
+        onEntityException = onEntityException
+    )
+
+    private fun <K, V, T> doQueryView(
+        dbQuery: ViewQueryLike,
+        keyType: Class<K>,
+        valueType: Class<V>,
+        docType: Class<T>,
+        timeoutDuration: Duration?,
+        requestId: String?,
+        onEntityException: EntityExceptionBehaviour
     ): Flow<ViewQueryResultEvent> = flow {
         coroutineScope {
             val start = System.currentTimeMillis()
 
-            val dbQuery = query.dbPath(dbURI.toString())
             val request = buildRequest(dbQuery, timeoutDuration, requestId)
 
             val asyncParser = objectMapper.createNonBlockingByteArrayParser()
@@ -1411,7 +1433,7 @@ class ClientImpl(
             /** Execute the request and get the response as a Flow of [JsonEvent] **/
             val jsonEvents =
                 request.retrieveAndInjectRequestId(headerHandlers, timingHandler).onStatus(404) {
-                    if (query.skipIfViewDoesNotExist) {
+                    if (dbQuery.skipIfViewDoesNotExist) {
                         //TODO accept to return null
                         throw SkippedQueryException()
                     } else {
@@ -1685,6 +1707,21 @@ class ClientImpl(
         }
     }
 
+    override fun dbs(ids: List<String>, timeout: Duration?, requestId: String?): Flow<FullDatabaseShardInfo> =
+        doQueryView(
+            dbQuery = DbsViewQuery(
+                keys = ids,
+                isIncludeDocs = true
+            ),
+            keyType = String::class.java,
+            valueType = String::class.java,
+            docType = FullDatabaseShardInfo::class.java,
+            timeoutDuration = timeout,
+            requestId = requestId,
+            onEntityException = EntityExceptionBehaviour.Fail
+        ).filterIsInstance<ViewRowWithDoc<Array<String>, String, FullDatabaseShardInfo>>()
+            .map { it.doc }
+
     override suspend fun schedulerDocs(): Scheduler.Docs {
         val uri = (dbURI.takeIf { it.path.isEmpty() || it.path == "/" } ?: java.net.URI.create(
             dbURI.toString().removeSuffix(dbURI.path)
@@ -1933,14 +1970,14 @@ class ClientImpl(
             .header(HttpHeaderNames.CONTENT_TYPE.toString(), "application/json")
             .body(body)
 
-    private fun buildRequest(query: ViewQuery, timeoutDuration: Duration? = null, requestId: String? = null) =
+    private fun buildRequest(query: ViewQueryLike, timeoutDuration: Duration? = null, requestId: String? = null) =
         if (query.hasMultipleKeys()) {
             newRequest(query.buildQuery(), query.keysAsJson(), requestId = requestId)
         } else {
             newRequest(query.buildQuery(), timeoutDuration = timeoutDuration, requestId = requestId)
         }
 
-    private fun ignoreError(query: ViewQuery, error: String): Boolean {
+    private fun ignoreError(query: ViewQueryLike, error: String): Boolean {
         return query.ignoreNotFound && NOT_FOUND_ERROR == error
     }
 
