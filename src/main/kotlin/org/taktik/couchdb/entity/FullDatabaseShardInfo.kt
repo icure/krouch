@@ -11,7 +11,7 @@ data class FullDatabaseShardInfo(
 	@param:JsonProperty("_id") val id: String,
 	@param:JsonProperty("_rev") val rev: String? = null,
 	@param:JsonProperty("shard_suffix") val shardSuffix: List<Int> = emptyList(),
-	val changeLog: List<JsonNode> = emptyList(),
+	@param:JsonProperty("changelog") val changeLog: List<JsonNode> = emptyList(),
 	@param:JsonProperty("by_node") val byNode: Map<String, List<String>> = emptyMap(),
 	@param:JsonProperty("by_range") val byRange: Map<String, List<String>> = emptyMap(),
 )

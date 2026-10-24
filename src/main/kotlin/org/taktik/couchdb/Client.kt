@@ -614,7 +614,12 @@ interface Client {
         requestId: String? = null,
     ): ChangesPage
 
-	fun dbs(ids: List<String>, timeout: Duration? = null, requestId: String? = null): Flow<FullDatabaseShardInfo>
+    /**
+     * Retrieves the shard map documents of the databases with the provided [ids] (database names) from the
+     * node-local `_dbs` system database (`/_node/_local/_dbs/_all_docs`). Requires admin credentials.
+     * Databases that do not exist (or have been deleted) are skipped.
+     */
+    fun dbs(ids: List<String>, timeout: Duration? = null, requestId: String? = null): Flow<FullDatabaseShardInfo>
 }
 
 private const val NOT_FOUND_ERROR = "not_found"
@@ -1710,16 +1715,18 @@ class ClientImpl(
     override fun dbs(ids: List<String>, timeout: Duration?, requestId: String?): Flow<FullDatabaseShardInfo> =
         doQueryView(
             dbQuery = DbsViewQuery(
+                couchDBUri = couchDBUri,
                 keys = ids,
-                isIncludeDocs = true
+                isIncludeDocs = true,
+                ignoreNotFound = true
             ),
             keyType = String::class.java,
-            valueType = String::class.java,
+            valueType = AllDocsViewValue::class.java,
             docType = FullDatabaseShardInfo::class.java,
             timeoutDuration = timeout,
             requestId = requestId,
             onEntityException = EntityExceptionBehaviour.Fail
-        ).filterIsInstance<ViewRowWithDoc<Array<String>, String, FullDatabaseShardInfo>>()
+        ).filterIsInstance<ViewRowWithDoc<String, AllDocsViewValue, FullDatabaseShardInfo>>()
             .map { it.doc }
 
     override suspend fun schedulerDocs(): Scheduler.Docs {
@@ -1972,7 +1979,7 @@ class ClientImpl(
 
     private fun buildRequest(query: ViewQueryLike, timeoutDuration: Duration? = null, requestId: String? = null) =
         if (query.hasMultipleKeys()) {
-            newRequest(query.buildQuery(), query.keysAsJson(), requestId = requestId)
+            newRequest(query.buildQuery(), query.keysAsJson(), requestId = requestId, timeoutDuration = timeoutDuration)
         } else {
             newRequest(query.buildQuery(), timeoutDuration = timeoutDuration, requestId = requestId)
         }
