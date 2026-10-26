@@ -29,16 +29,16 @@ data class DatabaseInfoWrapper(val info: DatabaseInfo?, val error: String?)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class DatabaseInfo(
-        @JsonProperty("db_name") val dbName: String,
-        @JsonProperty("purge_seq") val purgeSeq: String?,
-        @JsonProperty("update_seq") val updateSeq: String?,
+        @param:JsonProperty("db_name") val dbName: String,
+        @param:JsonProperty("purge_seq") val purgeSeq: String?,
+        @param:JsonProperty("update_seq") val updateSeq: String?,
         val sizes: Sizes,
-        @JsonProperty("doc_del_count") val docDelCount: Long?,
-        @JsonProperty("doc_count") val docCount: Long?,
-        @JsonProperty("disk_format_version") val diskFormatVersion: Long?,
-        @JsonProperty("compact_running") val compactRunning: Boolean?,
+        @param:JsonProperty("doc_del_count") val docDelCount: Long?,
+        @param:JsonProperty("doc_count") val docCount: Long?,
+        @param:JsonProperty("disk_format_version") val diskFormatVersion: Long?,
+        @param:JsonProperty("compact_running") val compactRunning: Boolean?,
         val cluster: Qnwr,
-        @JsonProperty("instance_start_time") val instanceStartTime: Long?,
+        @param:JsonProperty("instance_start_time") val instanceStartTime: Long?,
 ) : Serializable
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
