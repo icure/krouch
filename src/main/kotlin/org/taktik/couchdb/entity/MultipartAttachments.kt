@@ -18,7 +18,7 @@
 package org.taktik.couchdb.entity
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flow
 import java.nio.ByteBuffer
 
 /**
@@ -41,8 +41,12 @@ class AttachmentUpload(
     }
 
     companion object {
+        /**
+         * An upload of [bytes]. Its data can be collected several times (e.g. when a request is retried): each
+         * collection emits a new buffer over [bytes].
+         */
         fun of(contentType: String, bytes: ByteArray) =
-            AttachmentUpload(contentType, bytes.size.toLong(), flowOf(ByteBuffer.wrap(bytes)))
+            AttachmentUpload(contentType, bytes.size.toLong(), flow { emit(ByteBuffer.wrap(bytes)) })
     }
 }
 
