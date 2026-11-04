@@ -81,10 +81,9 @@ import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.mono
 import org.slf4j.LoggerFactory
 import org.taktik.couchdb.entity.ActiveTask
-import org.taktik.couchdb.entity.AttachmentContent
 import org.taktik.couchdb.entity.AttachmentResult
 import org.taktik.couchdb.entity.AttachmentUpload
-import org.taktik.couchdb.entity.DocumentWithAttachments
+import org.taktik.couchdb.entity.DocumentStreamEvent
 import org.taktik.couchdb.entity.Change
 import org.taktik.couchdb.entity.ChangesChunk
 import org.taktik.couchdb.entity.ChangesPage
@@ -111,18 +110,17 @@ import org.taktik.couchdb.exception.SkippedQueryException
 import org.taktik.couchdb.exception.ViewResultException
 import org.taktik.couchdb.mango.MangoQuery
 import org.taktik.couchdb.mango.MangoResultException
+import org.taktik.couchdb.util.DocumentStreamDecoder
 import org.taktik.couchdb.util.MultipartRelated
 import org.taktik.couchdb.util.appendDocumentOrDesignDocId
 import org.taktik.couchdb.util.bufferedChunks
 import reactor.core.publisher.Mono
-import java.io.ByteArrayOutputStream
 import java.io.Serializable
 import java.lang.reflect.Type
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 import java.time.Duration
 import java.time.Instant
-import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.max
@@ -481,20 +479,21 @@ interface Client {
     ): T
 
     /**
-     * Gets a document together with the content of all its attachments, in a single request.
+     * Streams a document together with the content of all its attachments, read in a single request.
      *
-     * The `_attachments` entries of the returned document are stubs, so it can be saved back as it is. The response is
-     * read in memory before it is decoded: this is not suited to attachments that do not fit in memory.
+     * The flow emits the document first: its `_attachments` are stubs (so it can be saved back as it is) and give the
+     * length of each attachment. The content of each attachment follows, one attachment after the other, as it is
+     * received and decompressed: an attachment is never held in memory as a whole. See [DocumentStreamEvent].
      *
      * @param rev the revision to read, or null for the current one.
-     * @return the document and its attachments by name, or null if the document (or this revision) does not exist.
+     * @return the events, or an empty flow if the document (or this revision) does not exist.
      */
-    suspend fun <T : CouchDbDocument> getWithAttachments(
+    fun <T : CouchDbDocument> getWithAttachments(
         id: String,
         clazz: Class<T>,
         rev: String? = null,
         requestId: String? = null
-    ): DocumentWithAttachments<T>?
+    ): Flow<DocumentStreamEvent<T>>
 
     suspend fun <T : CouchDbDocument> create(entity: T, clazz: Class<T>, requestId: String? = null): T
     suspend fun <T : CouchDbDocument> update(entity: T, clazz: Class<T>, requestId: String? = null): T
@@ -1241,80 +1240,25 @@ class ClientImpl(
         }.awaitSingle()
     }
 
-    override suspend fun <T : CouchDbDocument> getWithAttachments(
+    override fun <T : CouchDbDocument> getWithAttachments(
         id: String,
         clazz: Class<T>,
         rev: String?,
         requestId: String?
-    ): DocumentWithAttachments<T>? {
+    ): Flow<DocumentStreamEvent<T>> = flow {
         require(id.isNotBlank()) { "Id cannot be blank" }
         val uri = dbURI.appendDocumentOrDesignDocId(id).param("attachments", "true")
             .let { u -> rev?.let { u.param("rev", it) } ?: u }
         val request = newRequest(uri, requestId = requestId)
             .header(HttpHeaderNames.ACCEPT.toString(), "multipart/related, application/json")
 
-        return try {
-            request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toMono { responseBody, _, headers ->
-                mono {
-                    val contentType = headers.entries
-                        .firstOrNull { it.key.equals(HttpHeaderNames.CONTENT_TYPE.toString(), ignoreCase = true) }
-                        ?.value?.firstOrNull()
-                        ?: "application/json"
-                    val bytes = ByteArrayOutputStream().also { out ->
-                        responseBody.asFlow().collect { buffer ->
-                            val chunk = ByteArray(buffer.remaining())
-                            buffer.get(chunk)
-                            out.write(chunk)
-                        }
-                    }.toByteArray()
-                    decodeDocumentWithAttachments(contentType, bytes, clazz)
-                }
-            }.awaitSingle()
-        } catch (e: CouchDbException) {
-            if (e.statusCode == 404) null else throw e
-        }
-    }
-
-    private fun <T> decodeDocumentWithAttachments(contentType: String, bytes: ByteArray, clazz: Class<T>): DocumentWithAttachments<T> {
-        val boundary = MultipartRelated.boundaryOf(contentType)
-        // Without attachments CouchDB answers with plain JSON, whatever the Accept header.
-        val (documentBytes, parts) = if (boundary == null) {
-            bytes to emptyList()
-        } else {
-            val parts = MultipartRelated.decode(boundary, bytes)
-            check(parts.isNotEmpty()) { "Multipart document response has no part" }
-            parts.first().body to parts.drop(1)
-        }
-        val document = objectMapper.readTree(documentBytes) as ObjectNode
-        val attachmentsNode = document.get("_attachments") as? ObjectNode
-        val contents = mutableMapOf<String, AttachmentContent>()
-        val followingNames = mutableListOf<String>()
-        attachmentsNode?.fields()?.forEach { (name, node) ->
-            node as ObjectNode
-            val declaredType = node.get("content_type")?.asText()
-            when {
-                node.get("follows")?.asBoolean() == true -> followingNames.add(name)
-                node.hasNonNull("data") -> contents[name] = AttachmentContent(declaredType, Base64.getDecoder().decode(node.get("data").asText()))
-            }
-            // Return stubs, like a plain get, so that the document can be saved back as it is.
-            node.remove(listOf("follows", "data", "encoding", "encoded_length"))
-            node.put("stub", true)
-        }
-        parts.forEachIndexed { index, part ->
-            val name = part.filename ?: followingNames.getOrNull(index)
-                ?: throw IllegalStateException("Cannot match attachment part $index to an attachment of the document")
-            // "length" is the decoded size: it bounds the inflation of compressed parts.
-            val declaredLength = attachmentsNode?.get(name)?.get("length")?.asLong()
-            val data = part.decodedBody(maxSize = declaredLength ?: Long.MAX_VALUE)
-            check(declaredLength == null || data.size.toLong() == declaredLength) {
-                "Attachment $name has ${data.size} bytes but the document declares $declaredLength"
-            }
-            contents[name] = AttachmentContent(
-                part.contentType ?: attachmentsNode?.get(name)?.get("content_type")?.asText(),
-                data
-            )
-        }
-        return DocumentWithAttachments(objectMapper.treeToValue(document, clazz), contents)
+        val decoder = DocumentStreamDecoder(objectMapper, clazz) { emit(it) }
+        var notFound = false
+        request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toFlow()
+            // Only catches errors of the request: errors of the collector of this flow go through.
+            .catch { e -> if (e is CouchDbException && e.statusCode == 404) notFound = true else throw e }
+            .collect { decoder.feed(it) }
+        if (!notFound) decoder.finish()
     }
 
     // CouchDB Response body for Create/Update/Delete

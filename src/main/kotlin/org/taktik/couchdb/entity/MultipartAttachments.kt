@@ -51,23 +51,29 @@ class AttachmentUpload(
 }
 
 /**
- * The decoded content of an attachment read together with its document.
+ * What a streamed read of a document with its attachments emits, in this order:
+ * - one [Document];
+ * - then, for each attachment: one [AttachmentStart], its content as [AttachmentData] chunks, and one [AttachmentEnd].
  *
- * @param contentType the MIME type CouchDB stores for the attachment, if it sent one.
- * @param data the attachment bytes, already decompressed if CouchDB stored them compressed.
+ * Attachments are emitted one after the other, never interleaved.
  */
-class AttachmentContent(
-    val contentType: String?,
-    val data: ByteArray,
-)
+sealed interface DocumentStreamEvent<out T> {
+    /**
+     * The document. Its `_attachments` entries are stubs (so it can be saved back as it is) that give the
+     * `length` and `content_type` of each attachment before its content is streamed.
+     */
+    class Document<out T>(val document: T) : DocumentStreamEvent<T>
 
-/**
- * A document read together with the content of its attachments.
- *
- * @param document the document. Its `_attachments` entries describe the attachments but carry no data.
- * @param attachments the content of each attachment, by attachment name.
- */
-class DocumentWithAttachments<T>(
-    val document: T,
-    val attachments: Map<String, AttachmentContent>,
-)
+    /**
+     * The start of an attachment's content.
+     *
+     * @param length the size of the content that follows, after decompression.
+     */
+    class AttachmentStart(val name: String, val contentType: String?, val length: Long) : DocumentStreamEvent<Nothing>
+
+    /** A chunk of the content of attachment [name], already decompressed if CouchDB stored it compressed. */
+    class AttachmentData(val name: String, val data: ByteBuffer) : DocumentStreamEvent<Nothing>
+
+    /** The end of the content of attachment [name]: exactly the announced length was emitted. */
+    class AttachmentEnd(val name: String) : DocumentStreamEvent<Nothing>
+}

@@ -21,7 +21,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.taktik.couchdb.entity.AttachmentUpload
 import java.nio.ByteBuffer
-import java.util.zip.GZIPInputStream
+import java.nio.ByteOrder
+import java.util.zip.CRC32
+import java.util.zip.DataFormatException
+import java.util.zip.Inflater
 
 /**
  * Encoding and decoding of the `multipart/related` bodies CouchDB uses to carry a document and its attachments in one
@@ -41,6 +44,10 @@ object MultipartRelated {
     private val CRLF = "\r\n".toByteArray(Charsets.US_ASCII)
     private val DOUBLE_CRLF = "\r\n\r\n".toByteArray(Charsets.US_ASCII)
     private val DASH_DASH = "--".toByteArray(Charsets.US_ASCII)
+    private val SPACE: Byte = ' '.code.toByte()
+    private val TAB: Byte = '\t'.code.toByte()
+    private const val MAX_HEADERS_SIZE = 64 * 1024
+    const val OUTPUT_CHUNK_SIZE = 64 * 1024
 
     fun contentType(boundary: String) = "multipart/related; boundary=\"$boundary\""
 
@@ -100,100 +107,263 @@ object MultipartRelated {
         return EncodedBody(contentLength, data)
     }
 
-    /**
-     * One decoded part.
-     *
-     * @param headers the part headers, with lower-case names.
-     * @param body the part body as it was sent, still encoded if the part has a `Content-Encoding`: see [decodedBody].
-     */
-    class Part(val headers: Map<String, String>, val body: ByteArray) {
-        /**
-         * The part body with its `Content-Encoding` (`gzip` or none) undone.
-         *
-         * @param maxSize the largest decoded size accepted: decoding stops with an [IllegalStateException] past it.
-         */
-        fun decodedBody(maxSize: Long): ByteArray = when (headers["content-encoding"]?.lowercase()) {
-            null, "identity" -> body
-            "gzip" -> GZIPInputStream(body.inputStream()).use { input ->
-                val out = java.io.ByteArrayOutputStream()
-                val buffer = ByteArray(8192)
-                var total = 0L
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read < 0) break
-                    total += read
-                    check(total <= maxSize) { "Decoded part is larger than $maxSize bytes" }
-                    out.write(buffer, 0, read)
+    /** An event of [Parser]. */
+    sealed interface PartEvent {
+        /** A part starts. [headers] have lower-case names. */
+        class Start(val headers: Map<String, String>) : PartEvent {
+            /** The `filename` parameter of the `Content-Disposition` header, if any. */
+            val filename: String?
+                get() = headers["content-disposition"]?.let { disposition ->
+                    // CouchDB writes the name between quotes without escaping it, so it can itself contain ';'.
+                    val quoted = disposition.indexOf("filename=\"", ignoreCase = true)
+                    if (quoted >= 0 && disposition.endsWith("\"")) {
+                        disposition.substring(quoted + "filename=\"".length, disposition.length - 1)
+                    } else parameter(disposition, "filename")
                 }
-                out.toByteArray()
-            }
-            else -> throw IllegalStateException("Unsupported part Content-Encoding: ${headers["content-encoding"]}")
+            val contentType: String? get() = headers["content-type"]
+            val contentEncoding: String? get() = headers["content-encoding"]?.lowercase()
         }
 
-        /** The `filename` parameter of the `Content-Disposition` header, if any. */
-        val filename: String?
-            get() = headers["content-disposition"]?.let { disposition ->
-                // CouchDB writes the name between quotes without escaping it, so it can itself contain ';'.
-                val quoted = disposition.indexOf("filename=\"", ignoreCase = true)
-                if (quoted >= 0 && disposition.endsWith("\"")) {
-                    disposition.substring(quoted + "filename=\"".length, disposition.length - 1)
-                } else parameter(disposition, "filename")
-            }
-        val contentType: String?
-            get() = headers["content-type"]
+        /** A chunk of the current part's body, as sent (still encoded if the part has a `Content-Encoding`). */
+        class Data(val data: ByteArray) : PartEvent
+
+        /** The current part ends. */
+        data object End : PartEvent
     }
 
     /**
-     * Returns the `boundary` parameter of a `multipart/...` content type, or null if [contentType] is not multipart.
+     * Incremental parser of a multipart body: [feed] it the body chunk by chunk, then call [finish].
+     *
+     * Only headers and a delimiter's worth of look-ahead are buffered: a part body is passed to [sink] as it arrives.
+     * A part with a `Content-Length` header is read for exactly that length, and must be followed by the delimiter;
+     * a part without one (CouchDB's JSON part) runs up to the next delimiter.
      */
-    fun boundaryOf(contentType: String): String? =
-        if (contentType.trimStart().startsWith("multipart/", ignoreCase = true)) parameter(contentType, "boundary") else null
+    class Parser(boundary: String, private val sink: suspend (PartEvent) -> Unit) {
+        private enum class State { PREAMBLE, AFTER_DELIMITER, HEADERS, COUNTED_BODY, CLOSING_DELIMITER, SCANNED_BODY, DONE }
+
+        private val delimiter = "--$boundary".toByteArray(Charsets.US_ASCII)
+        private val bodyDelimiter = CRLF + delimiter
+        private var state = State.PREAMBLE
+        private var pending = ByteArray(0)
+        private var remaining = 0L
+
+        suspend fun feed(chunk: ByteBuffer) {
+            val input = ByteArray(chunk.remaining()).also { chunk.get(it) }
+            val data = if (pending.isEmpty()) input else pending + input
+            pending = ByteArray(0)
+            var pos = 0
+            while (true) {
+                when (state) {
+                    State.PREAMBLE -> {
+                        val idx = indexOf(data, delimiter, pos)
+                        if (idx < 0) {
+                            pos = maxOf(pos, data.size - delimiter.size + 1)
+                            break
+                        }
+                        pos = idx + delimiter.size
+                        state = State.AFTER_DELIMITER
+                    }
+                    State.AFTER_DELIMITER -> {
+                        // Transport padding, then "--" (closing delimiter) or the line break before the headers.
+                        while (pos < data.size && (data[pos] == SPACE || data[pos] == TAB)) pos++
+                        if (data.size - pos < 2) break
+                        when {
+                            startsWith(data, DASH_DASH, pos) -> {
+                                pos = data.size // The epilogue, if any, is ignored.
+                                state = State.DONE
+                            }
+                            startsWith(data, CRLF, pos) -> {
+                                pos += CRLF.size
+                                state = State.HEADERS
+                            }
+                            else -> throw IllegalStateException("Malformed multipart delimiter line")
+                        }
+                    }
+                    State.HEADERS -> {
+                        val headers = if (startsWith(data, CRLF, pos)) {
+                            pos += CRLF.size
+                            emptyMap()
+                        } else {
+                            val end = indexOf(data, DOUBLE_CRLF, pos)
+                            if (end < 0) {
+                                check(data.size - pos <= MAX_HEADERS_SIZE) { "Multipart part headers are too large" }
+                                break
+                            }
+                            parseHeaders(String(data, pos, end - pos, Charsets.UTF_8)).also { pos = end + DOUBLE_CRLF.size }
+                        }
+                        sink(PartEvent.Start(headers))
+                        val contentLength = headers["content-length"]?.let {
+                            checkNotNull(it.toLongOrNull()?.takeIf { l -> l >= 0 }) { "Invalid part Content-Length: $it" }
+                        }
+                        if (contentLength != null) {
+                            remaining = contentLength
+                            state = State.COUNTED_BODY
+                        } else {
+                            state = State.SCANNED_BODY
+                        }
+                    }
+                    State.COUNTED_BODY -> {
+                        val n = minOf(remaining, (data.size - pos).toLong()).toInt()
+                        if (n > 0) sink(PartEvent.Data(data.copyOfRange(pos, pos + n)))
+                        pos += n
+                        remaining -= n
+                        if (remaining > 0) break
+                        state = State.CLOSING_DELIMITER
+                    }
+                    State.CLOSING_DELIMITER -> {
+                        if (data.size - pos < bodyDelimiter.size) break
+                        check(startsWith(data, bodyDelimiter, pos)) { "Multipart part is longer than its Content-Length" }
+                        pos += bodyDelimiter.size
+                        sink(PartEvent.End)
+                        state = State.AFTER_DELIMITER
+                    }
+                    State.SCANNED_BODY -> {
+                        val idx = indexOf(data, bodyDelimiter, pos)
+                        if (idx >= 0) {
+                            if (idx > pos) sink(PartEvent.Data(data.copyOfRange(pos, idx)))
+                            pos = idx + bodyDelimiter.size
+                            sink(PartEvent.End)
+                            state = State.AFTER_DELIMITER
+                        } else {
+                            // Keep what could be the start of a delimiter split across chunks.
+                            val safeEnd = maxOf(pos, data.size - bodyDelimiter.size + 1)
+                            if (safeEnd > pos) sink(PartEvent.Data(data.copyOfRange(pos, safeEnd)))
+                            pos = safeEnd
+                            break
+                        }
+                    }
+                    State.DONE -> {
+                        pos = data.size
+                        break
+                    }
+                }
+            }
+            if (pos < data.size) pending = data.copyOfRange(pos, data.size)
+        }
+
+        /** Checks the body was complete. */
+        fun finish() {
+            check(state == State.DONE) { "Multipart body ended before its closing delimiter" }
+        }
+
+        private fun parseHeaders(block: String) = block.split("\r\n")
+            .filter { it.isNotBlank() }
+            .associate { line ->
+                val colon = line.indexOf(':')
+                check(colon > 0) { "Malformed multipart header: $line" }
+                line.substring(0, colon).trim().lowercase() to line.substring(colon + 1).trim()
+            }
+    }
 
     /**
-     * Decodes a complete multipart body. For each part, a `Content-Length` header is trusted when the delimiter follows
-     * the announced length; otherwise the body runs up to the next delimiter.
+     * Incremental gzip decoder: [feed] it the compressed bytes chunk by chunk, then call [finish]. Decompressed bytes are
+     * passed to [sink] as they are produced, at most [OUTPUT_CHUNK_SIZE] bytes at a time.
+     *
+     * @param maxSize the largest decompressed size accepted: decoding fails past it, which bounds what a corrupt or
+     * malicious stream can expand to.
      */
-    fun decode(boundary: String, body: ByteArray): List<Part> {
-        val delimiter = "--$boundary".toByteArray(Charsets.US_ASCII)
-        val crlfDelimiter = CRLF + delimiter
-        var pos = indexOf(body, delimiter, 0)
-        check(pos >= 0) { "Multipart body has no delimiter for boundary $boundary" }
-        pos += delimiter.size
-        val parts = mutableListOf<Part>()
-        while (true) {
-            if (startsWith(body, DASH_DASH, pos)) return parts
-            // Skip transport padding, then the line break that ends the delimiter line.
-            while (pos < body.size && (body[pos] == ' '.code.toByte() || body[pos] == '\t'.code.toByte())) pos++
-            check(startsWith(body, CRLF, pos)) { "Malformed multipart delimiter line at offset $pos" }
-            pos += CRLF.size
+    class GzipDecoder(private val maxSize: Long, private val sink: suspend (ByteBuffer) -> Unit) {
+        private enum class State { HEADER, BODY, TRAILER, DONE }
 
-            val headers: Map<String, String>
-            if (startsWith(body, CRLF, pos)) {
-                headers = emptyMap()
-                pos += CRLF.size
-            } else {
-                val headersEnd = indexOf(body, DOUBLE_CRLF, pos)
-                check(headersEnd >= 0) { "Unterminated multipart headers at offset $pos" }
-                headers = String(body, pos, headersEnd - pos, Charsets.UTF_8)
-                    .split("\r\n")
-                    .filter { it.isNotBlank() }
-                    .associate { line ->
-                        val colon = line.indexOf(':')
-                        check(colon > 0) { "Malformed multipart header: $line" }
-                        line.substring(0, colon).trim().lowercase() to line.substring(colon + 1).trim()
+        private var state = State.HEADER
+        private var pending = ByteArray(0)
+        private val inflater = Inflater(true)
+        private val crc = CRC32()
+        private val output = ByteArray(OUTPUT_CHUNK_SIZE)
+        private var total = 0L
+
+        suspend fun feed(input: ByteArray) {
+            var data = if (pending.isEmpty()) input else pending + input
+            pending = ByteArray(0)
+            while (data.isNotEmpty()) {
+                when (state) {
+                    State.HEADER -> {
+                        val headerSize = gzipHeaderSize(data)
+                        if (headerSize < 0) {
+                            check(data.size <= MAX_HEADERS_SIZE) { "gzip header is too large" }
+                            pending = data
+                            return
+                        }
+                        data = data.copyOfRange(headerSize, data.size)
+                        state = State.BODY
                     }
-                pos = headersEnd + DOUBLE_CRLF.size
-            }
-
-            val announcedLength = headers["content-length"]?.toLongOrNull()
-            val bodyEnd = announcedLength
-                ?.takeIf { it <= body.size - pos && startsWith(body, crlfDelimiter, pos + it.toInt()) }
-                ?.let { pos + it.toInt() }
-                ?: indexOf(body, crlfDelimiter, pos).also {
-                    check(it >= 0) { "Unterminated multipart part at offset $pos" }
+                    State.BODY -> {
+                        inflater.setInput(data)
+                        while (true) {
+                            val n = try {
+                                inflater.inflate(output)
+                            } catch (e: DataFormatException) {
+                                throw IllegalStateException("Invalid gzip data", e)
+                            }
+                            if (n > 0) {
+                                total += n
+                                check(total <= maxSize) { "Decompressed data is larger than $maxSize bytes" }
+                                crc.update(output, 0, n)
+                                sink(ByteBuffer.wrap(output.copyOf(n)))
+                            }
+                            if (inflater.finished()) {
+                                data = data.copyOfRange(data.size - inflater.remaining, data.size)
+                                state = State.TRAILER
+                                break
+                            }
+                            check(!inflater.needsDictionary()) { "gzip data needs a preset dictionary" }
+                            if (n == 0 && inflater.needsInput()) {
+                                data = ByteArray(0)
+                                break
+                            }
+                        }
+                    }
+                    State.TRAILER -> {
+                        if (data.size < GZIP_TRAILER_SIZE) {
+                            pending = data
+                            return
+                        }
+                        val trailer = ByteBuffer.wrap(data, 0, GZIP_TRAILER_SIZE).order(ByteOrder.LITTLE_ENDIAN)
+                        check(trailer.int.toLong() and 0xffffffffL == crc.value) { "gzip CRC mismatch" }
+                        check(trailer.int.toLong() and 0xffffffffL == total and 0xffffffffL) { "gzip size mismatch" }
+                        check(data.size == GZIP_TRAILER_SIZE) { "Unexpected data after the gzip stream" }
+                        data = ByteArray(0)
+                        state = State.DONE
+                    }
+                    State.DONE -> throw IllegalStateException("Unexpected data after the gzip stream")
                 }
-            parts.add(Part(headers, body.copyOfRange(pos, bodyEnd)))
-            pos = bodyEnd + crlfDelimiter.size
+            }
+        }
+
+        /** Checks the stream was complete and releases the inflater. */
+        fun finish() {
+            inflater.end()
+            check(state == State.DONE) { "gzip stream is truncated" }
+        }
+
+        /** The size of the gzip header at the start of [data], or -1 if [data] does not hold all of it yet. */
+        private fun gzipHeaderSize(data: ByteArray): Int {
+            if (data.size < 10) return -1
+            check(data[0] == 0x1f.toByte() && data[1] == 0x8b.toByte()) { "Not gzip data" }
+            check(data[2] == 8.toByte()) { "Unsupported gzip compression method ${data[2]}" }
+            val flags = data[3].toInt()
+            var pos = 10
+            if (flags and FEXTRA != 0) {
+                if (data.size < pos + 2) return -1
+                pos += 2 + ((data[pos].toInt() and 0xff) or ((data[pos + 1].toInt() and 0xff) shl 8))
+            }
+            for (flag in listOf(FNAME, FCOMMENT)) {
+                if (flags and flag != 0) {
+                    while (pos < data.size && data[pos] != 0.toByte()) pos++
+                    if (pos >= data.size) return -1
+                    pos++
+                }
+            }
+            if (flags and FHCRC != 0) pos += 2
+            return if (pos <= data.size) pos else -1
+        }
+
+        private companion object {
+            const val FHCRC = 2
+            const val FEXTRA = 4
+            const val FNAME = 8
+            const val FCOMMENT = 16
+            const val GZIP_TRAILER_SIZE = 8
         }
     }
 
