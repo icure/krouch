@@ -22,9 +22,11 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.JsonMappingException
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.ObjectWriter
 import com.fasterxml.jackson.databind.exc.InvalidFormatException
+import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.util.TokenBuffer
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import com.google.common.reflect.TypeParameter
@@ -79,7 +81,10 @@ import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.mono
 import org.slf4j.LoggerFactory
 import org.taktik.couchdb.entity.ActiveTask
+import org.taktik.couchdb.entity.AttachmentContent
 import org.taktik.couchdb.entity.AttachmentResult
+import org.taktik.couchdb.entity.AttachmentUpload
+import org.taktik.couchdb.entity.DocumentWithAttachments
 import org.taktik.couchdb.entity.Change
 import org.taktik.couchdb.entity.ChangesChunk
 import org.taktik.couchdb.entity.ChangesPage
@@ -106,15 +111,19 @@ import org.taktik.couchdb.exception.SkippedQueryException
 import org.taktik.couchdb.exception.ViewResultException
 import org.taktik.couchdb.mango.MangoQuery
 import org.taktik.couchdb.mango.MangoResultException
+import org.taktik.couchdb.util.MultipartRelated
 import org.taktik.couchdb.util.appendDocumentOrDesignDocId
 import org.taktik.couchdb.util.bufferedChunks
 import reactor.core.publisher.Mono
+import java.io.ByteArrayOutputStream
 import java.io.Serializable
 import java.lang.reflect.Type
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 import java.time.Duration
 import java.time.Instant
+import java.util.Base64
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.max
 import kotlin.math.min
@@ -437,6 +446,56 @@ interface Client {
     ): String
 
     suspend fun deleteAttachment(id: String, attachmentId: String, rev: String, requestId: String? = null): String
+
+    /**
+     * Creates [entity] and its [attachments] in a single `multipart/related` request, so that the document and its
+     * attachments are stored in the same revision.
+     *
+     * The `_attachments` entries [entity] serializes are sent as they are; an entry with the same name as one of
+     * [attachments] is replaced by the uploaded content. The returned entity only has its id and revision updated: its
+     * `_attachments` are not rewritten.
+     */
+    suspend fun <T : CouchDbDocument> createWithAttachments(
+        entity: T,
+        clazz: Class<T>,
+        attachments: Map<String, AttachmentUpload>,
+        requestId: String? = null
+    ): T
+
+    /**
+     * Updates [entity] and writes [attachments] in a single `multipart/related` request, so that the document and its
+     * attachments move to the next revision together: if the request fails, the document keeps its revision.
+     *
+     * The `_attachments` entries [entity] serializes decide what happens to the attachments already stored: an entry
+     * with `"stub": true` keeps the stored attachment and an attachment with no entry is removed. An entry with the same
+     * name as one of [attachments] is replaced by the uploaded content. The returned entity only has its revision
+     * updated: its `_attachments` are not rewritten.
+     *
+     * @throws org.taktik.couchdb.exception.CouchDbConflictException if the revision of [entity] is not the current one.
+     */
+    suspend fun <T : CouchDbDocument> updateWithAttachments(
+        entity: T,
+        clazz: Class<T>,
+        attachments: Map<String, AttachmentUpload>,
+        requestId: String? = null
+    ): T
+
+    /**
+     * Gets a document together with the content of all its attachments, in a single request.
+     *
+     * The `_attachments` entries of the returned document are stubs, so it can be saved back as it is. The response is
+     * read in memory before it is decoded: this is not suited to attachments that do not fit in memory.
+     *
+     * @param rev the revision to read, or null for the current one.
+     * @return the document and its attachments by name, or null if the document (or this revision) does not exist.
+     */
+    suspend fun <T : CouchDbDocument> getWithAttachments(
+        id: String,
+        clazz: Class<T>,
+        rev: String? = null,
+        requestId: String? = null
+    ): DocumentWithAttachments<T>?
+
     suspend fun <T : CouchDbDocument> create(entity: T, clazz: Class<T>, requestId: String? = null): T
     suspend fun <T : CouchDbDocument> update(entity: T, clazz: Class<T>, requestId: String? = null): T
 
@@ -1110,6 +1169,146 @@ class ClientImpl(
                 .body(data)
 
         request.getCouchDbResponse<AttachmentResult>()!!.rev
+    }
+
+    override suspend fun <T : CouchDbDocument> createWithAttachments(
+        entity: T,
+        clazz: Class<T>,
+        attachments: Map<String, AttachmentUpload>,
+        requestId: String?
+    ): T {
+        require(entity.rev == null) { "rev must be null to create a document, use updateWithAttachments to update it" }
+        return putWithAttachments(entity, clazz, attachments, requestId)
+    }
+
+    override suspend fun <T : CouchDbDocument> updateWithAttachments(
+        entity: T,
+        clazz: Class<T>,
+        attachments: Map<String, AttachmentUpload>,
+        requestId: String?
+    ): T {
+        val rev = requireNotNull(entity.rev) { "rev cannot be null" }
+        require(rev.matches(Regex("^[0-9]+-[a-z0-9]+$"))) { "Invalid rev format" }
+        return putWithAttachments(entity, clazz, attachments, requestId)
+    }
+
+    /**
+     * `PUT /db/id` with a `multipart/related` body: the document JSON, whose `_attachments` mark each uploaded
+     * attachment with `"follows": true`, then the content of each of these attachments, in the same order.
+     */
+    private suspend fun <T : CouchDbDocument> putWithAttachments(
+        entity: T,
+        clazz: Class<T>,
+        attachments: Map<String, AttachmentUpload>,
+        requestId: String?
+    ): T {
+        val docId = entity.id
+        require(docId.isNotBlank()) { "Id cannot be blank" }
+        attachments.keys.forEach { require(it.isNotBlank()) { "Attachment name cannot be blank" } }
+
+        val document = objectMapper.readTree(objectMapper.writerFor(clazz).writeValueAsBytes(entity)) as ObjectNode
+        val attachmentsNode = document.get("_attachments") as? ObjectNode ?: objectMapper.createObjectNode()
+        attachments.forEach { (name, upload) ->
+            attachmentsNode.replace(
+                name,
+                objectMapper.createObjectNode()
+                    .put("follows", true)
+                    .put("content_type", upload.contentType)
+                    .put("length", upload.length)
+            )
+        }
+        if (attachmentsNode.isEmpty) document.remove("_attachments") else document.set<JsonNode>("_attachments", attachmentsNode)
+
+        // CouchDB matches the parts to the "follows" entries by position: send them in the order of the JSON.
+        val orderedUploads = attachmentsNode.fieldNames().asSequence()
+            .mapNotNull { name -> attachments[name]?.let { name to it } }
+            .toList()
+        val boundary = UUID.randomUUID().toString().replace("-", "")
+        val body = MultipartRelated.encode(boundary, objectMapper.writeValueAsBytes(document), orderedUploads)
+
+        val request = newRequest(dbURI.addSinglePathComponent(docId), HttpMethod.PUT, requestId = requestId)
+            .header(HttpHeaderNames.CONTENT_TYPE.toString(), MultipartRelated.contentType(boundary))
+            .header(HttpHeaderNames.CONTENT_LENGTH.toString(), body.contentLength.toString())
+            .body(body.data)
+
+        return request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toMono { responseBody, _, _ ->
+            mono {
+                val response = responseBody.asFlow().toObject<CUDResponse>(objectMapper, false)!!
+                validate(response)
+                @Suppress("UNCHECKED_CAST")
+                entity.withIdRev(response.id, response.rev!!) as T
+            }
+        }.awaitSingle()
+    }
+
+    override suspend fun <T : CouchDbDocument> getWithAttachments(
+        id: String,
+        clazz: Class<T>,
+        rev: String?,
+        requestId: String?
+    ): DocumentWithAttachments<T>? {
+        require(id.isNotBlank()) { "Id cannot be blank" }
+        val uri = dbURI.appendDocumentOrDesignDocId(id).param("attachments", "true")
+            .let { u -> rev?.let { u.param("rev", it) } ?: u }
+        val request = newRequest(uri, requestId = requestId)
+            .header(HttpHeaderNames.ACCEPT.toString(), "multipart/related, application/json")
+
+        return try {
+            request.retrieveAndInjectRequestId(headerHandlers, timingHandler).registerStatusMappers().toMono { responseBody, _, headers ->
+                mono {
+                    val contentType = headers.entries
+                        .firstOrNull { it.key.equals(HttpHeaderNames.CONTENT_TYPE.toString(), ignoreCase = true) }
+                        ?.value?.firstOrNull()
+                        ?: "application/json"
+                    val bytes = ByteArrayOutputStream().also { out ->
+                        responseBody.asFlow().collect { buffer ->
+                            val chunk = ByteArray(buffer.remaining())
+                            buffer.get(chunk)
+                            out.write(chunk)
+                        }
+                    }.toByteArray()
+                    decodeDocumentWithAttachments(contentType, bytes, clazz)
+                }
+            }.awaitSingle()
+        } catch (e: CouchDbException) {
+            if (e.statusCode == 404) null else throw e
+        }
+    }
+
+    private fun <T> decodeDocumentWithAttachments(contentType: String, bytes: ByteArray, clazz: Class<T>): DocumentWithAttachments<T> {
+        val boundary = MultipartRelated.boundaryOf(contentType)
+        // Without attachments CouchDB answers with plain JSON, whatever the Accept header.
+        val (documentBytes, parts) = if (boundary == null) {
+            bytes to emptyList()
+        } else {
+            val parts = MultipartRelated.decode(boundary, bytes)
+            check(parts.isNotEmpty()) { "Multipart document response has no part" }
+            parts.first().body to parts.drop(1)
+        }
+        val document = objectMapper.readTree(documentBytes) as ObjectNode
+        val attachmentsNode = document.get("_attachments") as? ObjectNode
+        val contents = mutableMapOf<String, AttachmentContent>()
+        val followingNames = mutableListOf<String>()
+        attachmentsNode?.fields()?.forEach { (name, node) ->
+            node as ObjectNode
+            val declaredType = node.get("content_type")?.asText()
+            when {
+                node.get("follows")?.asBoolean() == true -> followingNames.add(name)
+                node.hasNonNull("data") -> contents[name] = AttachmentContent(declaredType, Base64.getDecoder().decode(node.get("data").asText()))
+            }
+            // Return stubs, like a plain get, so that the document can be saved back as it is.
+            node.remove(listOf("follows", "data", "encoding", "encoded_length"))
+            node.put("stub", true)
+        }
+        parts.forEachIndexed { index, part ->
+            val name = part.filename ?: followingNames.getOrNull(index)
+                ?: throw IllegalStateException("Cannot match attachment part $index to an attachment of the document")
+            contents[name] = AttachmentContent(
+                part.contentType ?: attachmentsNode?.get(name)?.get("content_type")?.asText(),
+                part.body
+            )
+        }
+        return DocumentWithAttachments(objectMapper.treeToValue(document, clazz), contents)
     }
 
     // CouchDB Response body for Create/Update/Delete
