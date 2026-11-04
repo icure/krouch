@@ -68,9 +68,18 @@ class MultipartRelatedTest {
 		val parts = MultipartRelated.decode("B", body)
 		assertEquals(3, parts.size)
 		assertEquals("a;b", parts[1].filename)
-		assertArrayEquals("compressible".toByteArray(), parts[1].body)
+		assertArrayEquals(gzipped, parts[1].body)
+		assertArrayEquals("compressible".toByteArray(), parts[1].decodedBody(maxSize = 12))
+		assertThrows<IllegalStateException> { parts[1].decodedBody(maxSize = 11) }
 		assertNull(parts[2].filename)
 		assertArrayEquals("no length".toByteArray(), parts[2].body)
+	}
+
+	@Test
+	fun `an attachment content type with line breaks is rejected`() {
+		assertThrows<IllegalArgumentException> {
+			AttachmentUpload.of("text/plain\r\nContent-Type: text/html", ByteArray(0))
+		}
 	}
 
 	@Test

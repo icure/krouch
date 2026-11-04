@@ -104,9 +104,32 @@ object MultipartRelated {
      * One decoded part.
      *
      * @param headers the part headers, with lower-case names.
-     * @param body the part body. A `gzip` [Content-Encoding][headers] is already decoded.
+     * @param body the part body as it was sent, still encoded if the part has a `Content-Encoding`: see [decodedBody].
      */
     class Part(val headers: Map<String, String>, val body: ByteArray) {
+        /**
+         * The part body with its `Content-Encoding` (`gzip` or none) undone.
+         *
+         * @param maxSize the largest decoded size accepted: decoding stops with an [IllegalStateException] past it.
+         */
+        fun decodedBody(maxSize: Long): ByteArray = when (headers["content-encoding"]?.lowercase()) {
+            null, "identity" -> body
+            "gzip" -> GZIPInputStream(body.inputStream()).use { input ->
+                val out = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0L
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    total += read
+                    check(total <= maxSize) { "Decoded part is larger than $maxSize bytes" }
+                    out.write(buffer, 0, read)
+                }
+                out.toByteArray()
+            }
+            else -> throw IllegalStateException("Unsupported part Content-Encoding: ${headers["content-encoding"]}")
+        }
+
         /** The `filename` parameter of the `Content-Disposition` header, if any. */
         val filename: String?
             get() = headers["content-disposition"]?.let { disposition ->
@@ -169,13 +192,7 @@ object MultipartRelated {
                 ?: indexOf(body, crlfDelimiter, pos).also {
                     check(it >= 0) { "Unterminated multipart part at offset $pos" }
                 }
-            val raw = body.copyOfRange(pos, bodyEnd)
-            val decoded = when (headers["content-encoding"]?.lowercase()) {
-                null, "identity" -> raw
-                "gzip" -> GZIPInputStream(raw.inputStream()).use { it.readBytes() }
-                else -> throw IllegalStateException("Unsupported part Content-Encoding: ${headers["content-encoding"]}")
-            }
-            parts.add(Part(headers, decoded))
+            parts.add(Part(headers, body.copyOfRange(pos, bodyEnd)))
             pos = bodyEnd + crlfDelimiter.size
         }
     }

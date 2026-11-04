@@ -36,6 +36,8 @@ class AttachmentUpload(
 ) {
     init {
         require(length >= 0) { "Attachment length cannot be negative" }
+        // The content type is written as a part header: control characters would let it inject headers or parts.
+        require(contentType.isNotBlank() && contentType.none { it.isISOControl() }) { "Invalid attachment content type" }
     }
 
     companion object {

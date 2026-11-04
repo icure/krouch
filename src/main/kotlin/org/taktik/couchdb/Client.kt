@@ -1303,9 +1303,15 @@ class ClientImpl(
         parts.forEachIndexed { index, part ->
             val name = part.filename ?: followingNames.getOrNull(index)
                 ?: throw IllegalStateException("Cannot match attachment part $index to an attachment of the document")
+            // "length" is the decoded size: it bounds the inflation of compressed parts.
+            val declaredLength = attachmentsNode?.get(name)?.get("length")?.asLong()
+            val data = part.decodedBody(maxSize = declaredLength ?: Long.MAX_VALUE)
+            check(declaredLength == null || data.size.toLong() == declaredLength) {
+                "Attachment $name has ${data.size} bytes but the document declares $declaredLength"
+            }
             contents[name] = AttachmentContent(
                 part.contentType ?: attachmentsNode?.get(name)?.get("content_type")?.asText(),
-                part.body
+                data
             )
         }
         return DocumentWithAttachments(objectMapper.treeToValue(document, clazz), contents)
