@@ -37,6 +37,7 @@ import org.taktik.couchdb.support.generators.shows.DefaultShowGenerator
 import org.taktik.couchdb.support.generators.shows.NoOpShowGenerator
 import org.taktik.couchdb.support.generators.shows.ShowGenerator
 import org.taktik.couchdb.support.repositories.ExternalViewRepository
+import java.lang.reflect.AnnotatedElement
 
 class DesignDocumentFactory<T : Any> private constructor(
 	private val viewGenerator: ViewGenerator<T>,
@@ -59,8 +60,12 @@ class DesignDocumentFactory<T : Any> private constructor(
 			designDocGenerator = DefaultDesignDocGenerator(),
 		)
 
-		fun getStdDesignDocumentFactory(): DesignDocumentFactory<Any> = DesignDocumentFactory(
-			viewGenerator = SimpleViewGenerator,
+		fun getStdDesignDocumentFactory(
+			filterMetadataSources: (AnnotatedElement) -> Boolean = { true },
+		): DesignDocumentFactory<Any> = DesignDocumentFactory(
+			viewGenerator = SimpleViewGenerator(
+				filterMetadataSources = filterMetadataSources
+			),
 			libGenerator = NoOpLibGenerator(),
 			listGenerator = DefaultListGenerator(),
 			showGenerator = DefaultShowGenerator(),

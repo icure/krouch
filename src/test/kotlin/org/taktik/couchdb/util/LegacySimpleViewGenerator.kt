@@ -24,21 +24,23 @@ class LegacySimpleViewGenerator : LegacyViewGenerator<Any> {
 		klass: Class<*>,
 		baseId: String,
 	) {
-		eachAnnotation(klass, Views::class.java, object : Predicate<Views> {
-			override fun apply(input: Views): Boolean {
-				for (v in input.value) {
-					addView(views, v, klass, baseId)
-				}
-				return true
+		eachAnnotation(
+			clazz = klass,
+			annotationClass = Views::class.java,
+			filter = { true }
+		) { input ->
+			for (v in input.value) {
+				addView(views, v, klass, baseId)
 			}
-		})
+		}
 
-		eachAnnotation(klass, View::class.java, object : Predicate<View> {
-			override fun apply(input: View): Boolean {
-				addView(views, input, klass, baseId)
-				return true
-			}
-		})
+		eachAnnotation(
+			clazz = klass,
+			annotationClass = View::class.java,
+			filter = { true }
+		) { input ->
+			addView(views, input, klass, baseId)
+		}
 	}
 
 	private fun addView(

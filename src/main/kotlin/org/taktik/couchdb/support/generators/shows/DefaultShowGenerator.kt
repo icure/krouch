@@ -4,7 +4,6 @@ import org.taktik.couchdb.annotation.ShowFunction
 import org.taktik.couchdb.annotation.Shows
 import org.taktik.couchdb.support.generators.loadFromFile
 import org.taktik.couchdb.util.Assert
-import org.taktik.couchdb.util.Predicate
 import org.taktik.couchdb.util.eachAnnotation
 
 class DefaultShowGenerator<T : Any> : ShowGenerator<T> {
@@ -13,21 +12,23 @@ class DefaultShowGenerator<T : Any> : ShowGenerator<T> {
 		val metaDataClass = metaDataSource.javaClass
 		val shows = mutableMapOf<String, String>()
 
-		eachAnnotation(metaDataClass, ShowFunction::class.java, object : Predicate<ShowFunction> {
-			override fun apply(input: ShowFunction): Boolean {
-				shows[input.name] = resolveShowFunction(input, metaDataClass)
-				return true
-			}
-		})
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = ShowFunction::class.java,
+			filter = { true }
+		) { input ->
+			shows[input.name] = resolveShowFunction(input, metaDataClass)
+		}
 
-		eachAnnotation(metaDataClass, Shows::class.java, object : Predicate<Shows> {
-			override fun apply(input: Shows): Boolean {
-				for (sf in input.value) {
-					shows[sf.name] = resolveShowFunction(sf, metaDataClass)
-				}
-				return true
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = Shows::class.java,
+			filter = { true }
+		) { input ->
+			for (sf in input.value) {
+				shows[sf.name] = resolveShowFunction(sf, metaDataClass)
 			}
-		})
+		}
 
 		return shows
 	}

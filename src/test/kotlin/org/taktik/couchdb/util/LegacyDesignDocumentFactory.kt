@@ -10,7 +10,6 @@ import org.taktik.couchdb.annotation.Shows
 import org.taktik.couchdb.annotation.UpdateHandler
 import org.taktik.couchdb.annotation.UpdateHandlers
 import org.taktik.couchdb.entity.DesignDocument
-import org.taktik.couchdb.support.generators.views.ViewGenerator
 import java.io.FileNotFoundException
 
 class LegacyDesignDocumentFactory<T : Any>(
@@ -44,22 +43,23 @@ class LegacyDesignDocumentFactory<T : Any>(
 	private fun createFilterFunctions(metaDataClass: Class<*>): Map<String, String> {
 		val shows: MutableMap<String, String> = HashMap()
 
-		eachAnnotation(metaDataClass, Filter::class.java, object : Predicate<Filter> {
-			override fun apply(input: Filter): Boolean {
-				shows[input.name] = resolveFilterFunction(input, metaDataClass)
-				return true
-			}
-		})
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = Filter::class.java,
+			filter = { true }
+		) { input ->
+			shows[input.name] = resolveFilterFunction(input, metaDataClass)
+		}
 
-
-		eachAnnotation(metaDataClass, Filters::class.java, object : Predicate<Filters> {
-			override fun apply(input: Filters): Boolean {
-				for (sf in input.value) {
-					shows[sf.name] = resolveFilterFunction(sf, metaDataClass)
-				}
-				return true
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = Filters::class.java,
+			filter = { true }
+		) { input ->
+			for (sf in input.value) {
+				shows[sf.name] = resolveFilterFunction(sf, metaDataClass)
 			}
-		})
+		}
 
 		return shows
 	}
@@ -67,21 +67,23 @@ class LegacyDesignDocumentFactory<T : Any>(
 	private fun createUpdateHandlerFunctions(metaDataClass: Class<*>): Map<String, String> {
 		val updateHandlers: MutableMap<String, String> = HashMap()
 
-		eachAnnotation(metaDataClass, UpdateHandler::class.java, object : Predicate<UpdateHandler> {
-			override fun apply(input: UpdateHandler): Boolean {
-				updateHandlers[input.name] = resolveUpdateHandlerFunction(input, metaDataClass)
-				return true
-			}
-		})
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = UpdateHandler::class.java,
+			filter = { true }
+		) { input ->
+			updateHandlers[input.name] = resolveUpdateHandlerFunction(input, metaDataClass)
+		}
 
-		eachAnnotation(metaDataClass, UpdateHandlers::class.java, object : Predicate<UpdateHandlers> {
-			override fun apply(input: UpdateHandlers): Boolean {
-				for (sf in input.value) {
-					updateHandlers[sf.name] = resolveUpdateHandlerFunction(sf, metaDataClass)
-				}
-				return true
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = UpdateHandlers::class.java,
+			filter = { true }
+		) { input ->
+			for (sf in input.value) {
+				updateHandlers[sf.name] = resolveUpdateHandlerFunction(sf, metaDataClass)
 			}
-		})
+		}
 
 		return updateHandlers
 	}
@@ -89,21 +91,23 @@ class LegacyDesignDocumentFactory<T : Any>(
 	private fun createShowFunctions(metaDataClass: Class<*>): Map<String, String> {
 		val shows: MutableMap<String, String> = HashMap()
 
-		eachAnnotation(metaDataClass, ShowFunction::class.java, object : Predicate<ShowFunction> {
-			override fun apply(input: ShowFunction): Boolean {
-				shows[input.name] = resolveShowFunction(input, metaDataClass)
-				return true
-			}
-		})
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = ShowFunction::class.java,
+			filter = { true }
+		) { input ->
+			shows[input.name] = resolveShowFunction(input, metaDataClass)
+		}
 
-		eachAnnotation(metaDataClass, Shows::class.java, object : Predicate<Shows> {
-			override fun apply(input: Shows): Boolean {
-				for (sf in input.value) {
-					shows[sf.name] = resolveShowFunction(sf, metaDataClass)
-				}
-				return true
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = Shows::class.java,
+			filter = { true }
+		) { input ->
+			for (sf in input.value) {
+				shows[sf.name] = resolveShowFunction(sf, metaDataClass)
 			}
-		})
+		}
 
 		return shows
 	}
@@ -111,21 +115,23 @@ class LegacyDesignDocumentFactory<T : Any>(
 	private fun createListFunctions(metaDataClass: Class<*>): Map<String, String> {
 		val lists: MutableMap<String, String> = HashMap()
 
-		eachAnnotation(metaDataClass, ListFunction::class.java, object : Predicate<ListFunction> {
-			override fun apply(input: ListFunction): Boolean {
-				lists[input.name] = resolveListFunction(input, metaDataClass)
-				return true
-			}
-		})
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = ListFunction::class.java,
+			filter = { true }
+		) { input ->
+			lists[input.name] = resolveListFunction(input, metaDataClass)
+		}
 
-		eachAnnotation(metaDataClass, Lists::class.java, object : Predicate<Lists> {
-			override fun apply(input: Lists): Boolean {
-				for (lf in input.value) {
-					lists[lf.name] = resolveListFunction(lf, metaDataClass)
-				}
-				return true
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = Lists::class.java,
+			filter = { true }
+		) { input ->
+			for (lf in input.value) {
+				lists[lf.name] = resolveListFunction(lf, metaDataClass)
 			}
-		})
+		}
 
 		return lists
 	}
