@@ -4,7 +4,6 @@ import org.taktik.couchdb.annotation.ListFunction
 import org.taktik.couchdb.annotation.Lists
 import org.taktik.couchdb.support.generators.loadFromFile
 import org.taktik.couchdb.util.Assert
-import org.taktik.couchdb.util.Predicate
 import org.taktik.couchdb.util.eachAnnotation
 
 class DefaultListGenerator<T : Any> : ListGenerator<T> {
@@ -13,21 +12,23 @@ class DefaultListGenerator<T : Any> : ListGenerator<T> {
 		val metaDataClass = metaDataSource.javaClass
 		val lists = mutableMapOf<String, String>()
 
-		eachAnnotation(metaDataClass, ListFunction::class.java, object : Predicate<ListFunction> {
-			override fun apply(input: ListFunction): Boolean {
-				lists[input.name] = resolveListFunction(input, metaDataClass)
-				return true
-			}
-		})
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = ListFunction::class.java,
+			filter = { true }
+		) { input ->
+			lists[input.name] = resolveListFunction(input, metaDataClass)
+		}
 
-		eachAnnotation(metaDataClass, Lists::class.java, object : Predicate<Lists> {
-			override fun apply(input: Lists): Boolean {
-				for (lf in input.value) {
-					lists[lf.name] = resolveListFunction(lf, metaDataClass)
-				}
-				return true
+		eachAnnotation(
+			clazz = metaDataClass,
+			annotationClass = Lists::class.java,
+			filter = { true }
+		) { input ->
+			for (lf in input.value) {
+				lists[lf.name] = resolveListFunction(lf, metaDataClass)
 			}
-		})
+		}
 
 		return lists
 	}

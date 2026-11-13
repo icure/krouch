@@ -21,12 +21,14 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.taktik.couchdb.annotation.View
 import org.taktik.couchdb.annotation.Views
 import org.taktik.couchdb.util.Exceptions
-import org.taktik.couchdb.util.Predicate
 import org.taktik.couchdb.util.eachAnnotation
 import java.io.FileNotFoundException
+import java.lang.reflect.AnnotatedElement
 import org.taktik.couchdb.entity.View as CouchDbView
 
-object SimpleViewGenerator : ViewGenerator<Any> {
+class SimpleViewGenerator(
+	private val filterMetadataSources: (AnnotatedElement) -> Boolean = { true },
+) : ViewGenerator<Any> {
 
 	override fun generateViews(
 		repository: Any,
@@ -42,21 +44,23 @@ object SimpleViewGenerator : ViewGenerator<Any> {
 		views: MutableMap<ViewGenerator.ViewKey, CouchDbView>,
 		klass: Class<*>,
 	) {
-		eachAnnotation(klass, Views::class.java, object : Predicate<Views> {
-			override fun apply(input: Views): Boolean {
-				for (v in input.value) {
-					addView(views, v, klass)
-				}
-				return true
+		eachAnnotation(
+			clazz = klass,
+			annotationClass = Views::class.java,
+			filter = filterMetadataSources
+		) { input ->
+			for (v in input.value) {
+				addView(views, v, klass)
 			}
-		})
+		}
 
-		eachAnnotation(klass, View::class.java, object : Predicate<View> {
-			override fun apply(input: View): Boolean {
-				addView(views, input, klass)
-				return true
-			}
-		})
+		eachAnnotation(
+			clazz = klass,
+			annotationClass = View::class.java,
+			filter = filterMetadataSources
+		) { input ->
+			addView(views, input, klass)
+		}
 	}
 
 	private fun addView(
