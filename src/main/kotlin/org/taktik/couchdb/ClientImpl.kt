@@ -68,6 +68,7 @@ import org.taktik.couchdb.entity.ChangesPage
 import org.taktik.couchdb.entity.ChangesStyle
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
 import org.taktik.couchdb.entity.DbsViewQuery
+import org.taktik.couchdb.entity.DesignDocInfo
 import org.taktik.couchdb.entity.DesignDocumentResult
 import org.taktik.couchdb.entity.DocumentStreamEvent
 import org.taktik.couchdb.entity.EntityExceptionBehaviour
@@ -301,6 +302,15 @@ class ClientImpl(
 			.header(HttpHeaderNames.CONTENT_TYPE.toString(), "application/json")
 		val result = request.getCouchDbResponse<Map<String, *>?>(false)
 		return result?.get("ok") == true
+	}
+
+	override suspend fun designDocInfo(designDocId: String): DesignDocInfo? {
+		val uri = dbURI
+			.addSinglePathComponent("_design")
+			.addSinglePathComponent(designDocId.removePrefix("_design/"))
+			.addSinglePathComponent("_info")
+		return newRequest(uri = uri, method = HttpMethod.GET)
+			.getCouchDbResponse<DesignDocInfo>(nullIf404 = true)
 	}
 
 	@Deprecated("Use overload with TypeReference instead to avoid loss of Generic information in lists")

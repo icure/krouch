@@ -29,31 +29,31 @@ data class DatabaseInfoWrapper(val info: DatabaseInfo?, val error: String?)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class DatabaseInfo(
-        @param:JsonProperty("db_name") val dbName: String,
-        @param:JsonProperty("purge_seq") val purgeSeq: String?,
-        @param:JsonProperty("update_seq") val updateSeq: String?,
-        val sizes: Sizes,
-        @param:JsonProperty("doc_del_count") val docDelCount: Long?,
-        @param:JsonProperty("doc_count") val docCount: Long?,
-        @param:JsonProperty("disk_format_version") val diskFormatVersion: Long?,
-        @param:JsonProperty("compact_running") val compactRunning: Boolean?,
-        val cluster: Qnwr,
-        @param:JsonProperty("instance_start_time") val instanceStartTime: Long?,
+	@param:JsonProperty("db_name") val dbName: String,
+	@param:JsonProperty("purge_seq") val purgeSeq: String?,
+	@param:JsonProperty("update_seq") val updateSeq: String?,
+	val sizes: Sizes,
+	@param:JsonProperty("doc_del_count") val docDelCount: Long?,
+	@param:JsonProperty("doc_count") val docCount: Long?,
+	@param:JsonProperty("disk_format_version") val diskFormatVersion: Long?,
+	@param:JsonProperty("compact_running") val compactRunning: Boolean?,
+	val cluster: Qnwr,
+	@param:JsonProperty("instance_start_time") val instanceStartTime: Long?,
 ) : Serializable
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Sizes(
-        val file: Long,
-        val external: Long,
-        val active: Long,
+	val file: Long,
+	val external: Long,
+	val active: Long,
 ) : Serializable
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Qnwr(
-        val q: Int?,
-        val n: Int?,
-        val w: Int?,
-        val r: Int?,
+	val q: Int?,
+	val n: Int?,
+	val w: Int?,
+	val r: Int?,
 ) : Serializable
