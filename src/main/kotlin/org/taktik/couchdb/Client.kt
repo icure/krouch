@@ -27,6 +27,7 @@ import org.taktik.couchdb.entity.ChangesChunk
 import org.taktik.couchdb.entity.ChangesPage
 import org.taktik.couchdb.entity.ChangesStyle
 import org.taktik.couchdb.entity.DatabaseInfoWrapper
+import org.taktik.couchdb.entity.DesignDocInfo
 import org.taktik.couchdb.entity.EntityExceptionBehaviour
 import org.taktik.couchdb.entity.FullDatabaseShardInfo
 import org.taktik.couchdb.entity.IdAndRev
@@ -61,6 +62,8 @@ interface Client {
     suspend fun compactDatabase(): Boolean
     suspend fun compact(designDocId: String): Boolean
     suspend fun viewCleanup(): Boolean
+
+    suspend fun designDocInfo(designDocId: String): DesignDocInfo?
 
     // CRUD methods
     suspend fun <T : CouchDbDocument> get(id: String, clazz: Class<T>, vararg options: Option): T?
